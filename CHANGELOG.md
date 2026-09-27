@@ -6,6 +6,8 @@ Todos los cambios relevantes del proyecto se documentan en este archivo.
 
 ### Nuevas funcionalidades
 
+- **frontend:** agrega la escala responsive Mobile-M y Mobile-L ([420e9f5](https://github.com/kleibergpm/arsfuturo/commit/420e9f547b4e2cb11b3b124028be50fce8bffedf))
+- **frontend:** rediseña la interfaz operativa y estandariza la herramienta del proyecto ([a84026a](https://github.com/kleibergpm/arsfuturo/commit/a84026a78760064d6c0e3d97ecf81ee4a063b772))
 - refactor backend structure and improve code quality ([1e3fddd](https://github.com/kleibergpm/arsfuturo/commit/1e3fddd35d42214386c5cc9b248b257a922e8f8b))
 - migrate frontend and backend to TypeScript, enhance README documentation, and add K6 testing scripts ([c54d361](https://github.com/kleibergpm/arsfuturo/commit/c54d3612c8a80f55d54acb5c38f108f18fb64ba2))
 - implementacion de la configuración de Swagger UI y la estructura de documentación de la API. ([10a0dd2](https://github.com/kleibergpm/arsfuturo/commit/10a0dd24f51c14b9dec92a3c25f4ec9c5798d029))
@@ -22,6 +24,7 @@ Todos los cambios relevantes del proyecto se documentan en este archivo.
 
 ### Otros cambios
 
+- feat(frontend) - Changes V2 ([3450767](https://github.com/kleibergpm/arsfuturo/commit/3450767de65498cf29454c7726f56717cf6209aa))
 - Add Software Quality Assurance (SQA) Plan documentation ([85116fd](https://github.com/kleibergpm/arsfuturo/commit/85116fd8f7761e21effc3ebd7542aabb91016418))
 - Update ESLint setup documentation for backend and frontend ([a93d28e](https://github.com/kleibergpm/arsfuturo/commit/a93d28e71868be8289cf45570613642d52c3a0c2))
 - Add ESLint setup documentation for backend and frontend ([b0158f2](https://github.com/kleibergpm/arsfuturo/commit/b0158f2f4ee250a97fddfa5bad8c2ae907fc8a8e))

@@ -402,6 +402,11 @@ Reglas que aplica todo el proyecto:
 
 El historial de cambios se mantiene en [CHANGELOG.md](CHANGELOG.md) y se genera a partir de los commits del repositorio.
 
+Para instalar changelog y ejecutar el comando de regenerarlo
+```bash
+pnpm i changelog
+```
+
 Para regenerarlo:
 
 ```bash
