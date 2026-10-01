@@ -61,6 +61,8 @@ Sistema full-stack para la gestión de una Administradora de Riesgos de Salud (A
 [![GitHub Actions](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?logo=github-actions&logoColor=white)](https://github.com/features/actions)
 [![K6](https://img.shields.io/badge/K6-22B14E?logo=k6&logoColor=white)](https://k6.io/)
 
+## Preguntar a DeepWiki: [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/kleibergpm/arsfuturo)
+
 ## Índice
 
 - [Estructura del proyecto](#estructura-del-proyecto)
