@@ -225,14 +225,37 @@ export default function ARS_Futuro_App() {
     const nuevo = adaptReclamo(await mutationsApi.reclamo(toClaimPayload({ afiliadoId, proveedorId, monto: Number(monto) })));
     setReclamaciones((prev) => [nuevo, ...prev]);
   };
+//funcion mejorada para que no se cree una autorizacion aprobada por defecto
+ const crearAutorizacion = async ({ afiliadoId, proveedorId, procedimiento }) => {
+  const af = afiliados.find(
+    (a) => String(a.id) === String(afiliadoId)
+  );
 
-  const crearAutorizacion = async ({ afiliadoId, proveedorId, procedimiento }) => {
-    const af = afiliados.find((a) => String(a.id) === String(afiliadoId));
-    if (!af) return null;
-    const nueva = adaptAutorizacion(await mutationsApi.autorizacion(toAuthorizationPayload({ afiliadoId, proveedorId, procedimiento })));
-    setAutorizaciones((prev) => [nueva, ...prev]);
-    return nueva;
+  if (!af) return null;
+
+  const nueva = adaptAutorizacion(
+    await mutationsApi.autorizacion(
+      toAuthorizationPayload({
+        afiliadoId,
+        proveedorId,
+        procedimiento
+      })
+    )
+  );
+
+  // Toda autorización nueva comienza como Pendiente
+  const nuevaPendiente = {
+    ...nueva,
+    estado: "Pendiente"
   };
+
+  setAutorizaciones((prev) => [
+    nuevaPendiente,
+    ...prev
+  ]);
+
+  return nuevaPendiente;
+};
 
   // Registrar Servicio Médico (CU07)
   const registrarServicio = async ({ afiliadoId, proveedorId, descripcion, costo, autorizacionId }) => {
