@@ -348,21 +348,36 @@ export default function ARS_Futuro_App() {
 		setReclamaciones((prev) => [nuevo, ...prev]);
 	};
 
-	const crearAutorizacion = async ({
-		afiliadoId,
-		proveedorId,
-		procedimiento,
-	}) => {
-		const af = afiliados.find((a) => String(a.id) === String(afiliadoId));
-		if (!af) return null;
-		const nueva = adaptAutorizacion(
-			await mutationsApi.autorizacion(
-				toAuthorizationPayload({ afiliadoId, proveedorId, procedimiento }),
-			),
-		);
-		setAutorizaciones((prev) => [nueva, ...prev]);
-		return nueva;
-	};
+const crearAutorizacion = async ({ afiliadoId, proveedorId, procedimiento }) => {
+  const af = afiliados.find(
+    (a) => String(a.id) === String(afiliadoId)
+  );
+
+  if (!af) return null;
+
+  const nueva = adaptAutorizacion(
+    await mutationsApi.autorizacion(
+      toAuthorizationPayload({
+        afiliadoId,
+        proveedorId,
+        procedimiento
+      })
+    )
+  );
+
+  // Toda autorización nueva comienza como Pendiente
+  const nuevaPendiente = {
+    ...nueva,
+    estado: "Pendiente"
+  };
+
+  setAutorizaciones((prev) => [
+    nuevaPendiente,
+    ...prev
+  ]);
+
+  return nuevaPendiente;
+};
 
 	// Registrar Servicio Médico (CU07)
 	const registrarServicio = async ({
