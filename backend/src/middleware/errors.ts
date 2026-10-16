@@ -1,4 +1,5 @@
 import { Prisma } from "../lib/generated/client/index.js";
+import { CedulaValidationUnavailableError } from "../Servicios/cedulaValidation.service.js";
 export function notFound(req, res) {
 	res
 		.status(404)
@@ -27,6 +28,11 @@ export function errorHandler(err, req, res, next) {
 		return res
 			.status(422)
 			.json({ error: "VALIDATION_ERROR", details: err.flatten() });
+	if (err instanceof CedulaValidationUnavailableError)
+		return res.status(err.status).json({
+			error: "EXTERNAL_SERVICE_UNAVAILABLE",
+			message: err.message,
+		});
 	return res
 		.status(err.status || 500)
 		.json({ error: "INTERNAL_ERROR", message: err.message || "Error interno" });

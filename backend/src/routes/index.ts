@@ -6,6 +6,7 @@ import { crud } from "../controllers/crud.controller.js";
 import { allow, authenticate } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/errors.js";
 import { validate } from "../middleware/validate.js";
+import { validateCedula } from "../Servicios/cedulaValidation.service.js";
 
 const r = Router();
 const id = z.string().uuid();
@@ -89,6 +90,7 @@ const resource = (
 	include,
 	access = roles.admin,
 	idSchema = uuid,
+	beforeCreate = undefined,
 ) => {
 	const c = crud(model, include);
 	r.get(path, authenticate, allow(...access), asyncHandler(c.list));
@@ -104,6 +106,7 @@ const resource = (
 		authenticate,
 		allow(...access),
 		validate(schema),
+		...(beforeCreate ? [asyncHandler(beforeCreate)] : []),
 		asyncHandler(c.create),
 	);
 	r.patch(
@@ -138,6 +141,15 @@ resource(
 	schemas.insured,
 	{ plan: true, policy: true },
 	roles.staff,
+	uuid,
+	async (req, res, next) => {
+		if (!(await validateCedula(req.body.nationalId)))
+			return res.status(422).json({
+				error: "INVALID_CEDULA",
+				message: "La cedula indicada no es valida",
+			});
+		next();
+	},
 );
 resource(
 	"/reclamos",
