@@ -36,9 +36,29 @@ const crudPaths = (resource: string, schema: Record<string, unknown>) => ({
 		post: {
 			tags: [resource],
 			summary: `Crea ${resource.slice(0, -1)}`,
+			...(resource === "afiliados"
+				? {
+						description:
+							"La cedula se valida con la Cedula Validation API antes de crear el afiliado. Si no es valida, responde 422; si el servicio externo no esta disponible, responde 503.",
+					}
+				: {}),
 			security: bearerSecurity,
 			requestBody: jsonBody(schema),
-			responses: { 201: okResponse, ...errorResponses },
+			responses: {
+				201: okResponse,
+				...errorResponses,
+				...(resource === "afiliados"
+					? {
+							422: {
+								description: "Datos invalidos o cedula no valida",
+							},
+							503: {
+								description:
+									"El servicio externo de validacion no esta disponible",
+							},
+						}
+					: {}),
+			},
 		},
 	},
 	[`/api/${resource}/{id}`]: {
@@ -133,6 +153,11 @@ const spec = {
 		{ name: "auth", description: "Autenticacion y sesion" },
 		{ name: "planes", description: "Planes de salud" },
 		{ name: "afiliados", description: "Afiliados" },
+		{
+			name: "validacion-cedula",
+			description:
+				"API externa de validacion de cedulas de la Republica Dominicana",
+		},
 		{ name: "proveedores", description: "Proveedores medicos" },
 		{ name: "polizas", description: "Polizas" },
 		{ name: "reclamos", description: "Reclamos" },
@@ -183,6 +208,46 @@ const spec = {
 				summary: "Obtiene el usuario autenticado",
 				security: bearerSecurity,
 				responses: { 200: okResponse, ...errorResponses },
+			},
+		},
+		"/v3/cedulas/{id}/validate": {
+			servers: [
+				{
+					url: "https://api.digital.gob.do",
+					description: "Portal de APIs dominicano",
+				},
+			],
+			get: {
+				tags: ["validacion-cedula"],
+				summary: "Valida una cedula dominicana",
+				description:
+					"Endpoint abierto del Portal de APIs dominicano. Acepta una cedula o un hash y valida el formato con el algoritmo de Luhn y la base de datos de la JCE.",
+				parameters: [
+					{
+						name: "id",
+						in: "path",
+						required: true,
+						description: "Cedula o hash a validar",
+						schema: { type: "string" },
+					},
+				],
+				responses: {
+					200: {
+						description: "Resultado de la validacion",
+						content: {
+							"application/json": {
+								schema: objectSchema({
+									valid: { type: "boolean", example: true },
+								}),
+							},
+						},
+					},
+					404: { description: "Cedula o hash no encontrado" },
+				},
+				externalDocs: {
+					description: "Documentacion oficial",
+					url: "https://developer.digital.gob.do/apis/ff9ce928-e16e-4ea9-9ce9-28e16e1ea96e",
+				},
 			},
 		},
 		"/api/autorizaciones": {
