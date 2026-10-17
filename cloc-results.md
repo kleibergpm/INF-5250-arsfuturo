@@ -1,23 +1,13 @@
-| Language | Files | Blank | Comment | Code |
-| :--- | ---: | ---: | ---: | ---: |
-| JavaScript | 10,086 | 113,870 | 344,265 | 1,849,338 |
-| TypeScript | 2,845 | 43,832 | 453,732 | 355,804 |
-| JSON | 943 | 40 | 0 | 97,954 |
-| Markdown | 626 | 31,318 | 362 | 84,748 |
-| YAML | 51 | 199 | 25 | 2,582 |
-| Bourne Shell | 35 | 231 | 112 | 1,267 |
-| HTML | 9 | 210 | 2 | 1,221 |
-| Text | 18 | 180 | 0 | 828 |
-| PowerShell | 34 | 34 | 170 | 748 |
-| DOS Batch | 34 | 568 | 0 | 518 |
-| SVG | 33 | 0 | 0 | 516 |
-| Prisma Schema | 2 | 33 | 0 | 434 |
-| CSS | 13 | 77 | 129 | 268 |
-| SQL | 2 | 26 | 6 | 186 |
-| INI | 4 | 22 | 0 | 84 |
-| AppleScript | 1 | 11 | 23 | 61 |
-| Make | 3 | 21 | 4 | 43 |
-| Nix | 1 | 1 | 0 | 19 |
-| XML | 2 | 8 | 0 | 2 |
-| CoffeeScript | 1 | 0 | 0 | 9 |
-| **SUM** | **14,743** | **189,366** | **798,830** | **2,396,527** |
+**Resultados de la herramienta de CLOC - Tamaño del Codigo Fuente** 
+
+| Lenguaje | Archivos | Líneas en blanco | Comentarios | Líneas de código |
+|----------|---------:|-----------------:|------------:|-----------------:|
+| TypeScript | 5 | 2,180 | 8,842 | 14,734 |
+| JSON | 3 | 0 | 0 | 4,088 |
+| JSX | 2 | 157 | 24 | 1,747 |
+| JavaScript | 15 | 188 | 95 | 1,033 |
+| Markdown | 3 | 157 | 0 | 682 |
+| Prisma Schema | 1 | 31 | 0 | 217 |
+| HTML | 1 | 0 | 0 | 13 |
+| CSS | 1 | 1 | 0 | 4 |
+| **TOTAL** | **31** | **2,714** | **8,961** | **22,518** |
