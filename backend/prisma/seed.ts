@@ -600,6 +600,23 @@ async function main() {
 		});
 	}
 
+	// Cuenta demo vinculada por cedula al primer asegurado (datos ficticios).
+	await prisma.user.upsert({
+		where: { username: "afiliado" },
+		update: {
+			name: "Afiliado demo",
+			role: Role.INSURED,
+			nationalId: "00112345678",
+		},
+		create: {
+			username: "afiliado",
+			name: "Afiliado demo",
+			role: Role.INSURED,
+			nationalId: "00112345678",
+			passwordHash: await bcrypt.hash("afiliado123", 12),
+		},
+	});
+
 	/*
     |--------------------------------------------------------------------------
     | RESUMEN
@@ -620,6 +637,7 @@ async function main() {
 	console.log("Agente        : agente3 / agente789");
 	console.log("Supervisor    : supervisor / super123");
 	console.log("Supervisor    : supervisor2 / super456");
+	console.log("Afiliado      : afiliado / afiliado123");
 	console.log("");
 	console.log(`Planes       : ${plans.length}`);
 	console.log(`Proveedores  : ${providers.length}`);

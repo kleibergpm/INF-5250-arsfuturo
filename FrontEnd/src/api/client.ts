@@ -46,10 +46,25 @@ export const authApi = {
 				password: credentials.password,
 			}),
 		),
+	register: (input: {
+		usuario: string;
+		password: string;
+		nombre: string;
+		cedula: string;
+	}) =>
+		unwrap<ApiUser>(
+			api.post("/auth/register", {
+				username: input.usuario,
+				password: input.password,
+				name: input.nombre,
+				nationalId: input.cedula,
+			}),
+		),
 	me: () => unwrap<ApiUser>(api.get("/auth/me")),
 };
 
 export const resourcesApi = {
+	misAutorizaciones: () => unwrap<ApiRecord[]>(api.get("/mis-autorizaciones")),
 	planes: () => unwrap<ApiRecord[]>(api.get("/planes")),
 	afiliados: () => unwrap<ApiRecord[]>(api.get("/afiliados")),
 	proveedores: () => unwrap<ApiRecord[]>(api.get("/proveedores")),

@@ -28,6 +28,8 @@ export async function validateCedula(nationalId: string): Promise<boolean> {
 		);
 	}
 
+	if (response.status === 400) return false;
+
 	if (!response.ok) {
 		throw new CedulaValidationUnavailableError(
 			`El servicio de validacion de cedulas respondio con estado ${response.status}`,

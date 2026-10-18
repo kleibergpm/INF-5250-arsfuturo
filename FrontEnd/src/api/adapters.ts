@@ -17,6 +17,7 @@ const roleLabels: Record<string, string> = {
 	ADMINISTRATOR: "Administrador",
 	AGENT: "Agente",
 	SUPERVISOR: "Supervisor",
+	INSURED: "Afiliado",
 };
 
 // Cada entidad tiene su propio enum de estado en el backend (aunque algunos comparten el

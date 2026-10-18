@@ -11,6 +11,7 @@ enum Role {
   ADMINISTRATOR
   AGENT
   SUPERVISOR
+  INSURED
 }
 
 enum InsuredStatus {
@@ -59,6 +60,7 @@ model User {
   id             String         @id @default(uuid())
   username       String         @unique
   name           String
+  nationalId     String?        @unique @map("national_id")
   passwordHash   String         @map("password_hash")
   role           Role
   notifications  Notification[]
