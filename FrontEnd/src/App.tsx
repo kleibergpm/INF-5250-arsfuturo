@@ -108,6 +108,15 @@ export default function ARS_Futuro_App() {
 	const [loginForm, setLoginForm] = useState({ usuario: "", password: "" });
 	const [loginError, setLoginError] = useState("");
 	const [loginLoading, setLoginLoading] = useState(false);
+	const [registering, setRegistering] = useState(false);
+	const [registerForm, setRegisterForm] = useState({
+		usuario: "",
+		password: "",
+		nombre: "",
+		cedula: "",
+	});
+	const [ownAuthorizations, setOwnAuthorizations] = useState([]);
+	const [ownError, setOwnError] = useState("");
 
 	const [planes, setPlanes] = useState([]);
 	const [afiliados, setAfiliados] = useState([]);
@@ -195,7 +204,7 @@ export default function ARS_Futuro_App() {
 	}, []);
 
 	useEffect(() => {
-		if (!isAuthenticated) return undefined;
+		if (!isAuthenticated || currentUser?.rol === "Afiliado") return undefined;
 		setLoading(true);
 		const isAdmin = currentUser?.rol === "Administrador";
 		Promise.all([
@@ -243,6 +252,25 @@ export default function ARS_Futuro_App() {
 			})
 			.finally(() => setLoading(false));
 	}, [isAuthenticated, currentUser?.rol, addNotification]);
+
+	const loadOwnAuthorizations = useCallback(async () => {
+		if (!isAuthenticated || currentUser?.rol !== "Afiliado") return;
+		setLoading(true);
+		setOwnError("");
+		try {
+			setOwnAuthorizations(await resourcesApi.misAutorizaciones());
+		} catch (error) {
+			setOwnError(
+				error.response?.data?.message ||
+					"No fue posible consultar tus autorizaciones",
+			);
+		} finally {
+			setLoading(false);
+		}
+	}, [isAuthenticated, currentUser?.rol]);
+	useEffect(() => {
+		loadOwnAuthorizations();
+	}, [loadOwnAuthorizations]);
 
 	const afiliadosFiltrados = useMemo(() => {
 		return afiliados.filter(
@@ -348,36 +376,35 @@ export default function ARS_Futuro_App() {
 		setReclamaciones((prev) => [nuevo, ...prev]);
 	};
 
-const crearAutorizacion = async ({ afiliadoId, proveedorId, procedimiento }) => {
-  const af = afiliados.find(
-    (a) => String(a.id) === String(afiliadoId)
-  );
+	const crearAutorizacion = async ({
+		afiliadoId,
+		proveedorId,
+		procedimiento,
+	}) => {
+		const af = afiliados.find((a) => String(a.id) === String(afiliadoId));
 
-  if (!af) return null;
+		if (!af) return null;
 
-  const nueva = adaptAutorizacion(
-    await mutationsApi.autorizacion(
-      toAuthorizationPayload({
-        afiliadoId,
-        proveedorId,
-        procedimiento
-      })
-    )
-  );
+		const nueva = adaptAutorizacion(
+			await mutationsApi.autorizacion(
+				toAuthorizationPayload({
+					afiliadoId,
+					proveedorId,
+					procedimiento,
+				}),
+			),
+		);
 
-  // Toda autorización nueva comienza como Pendiente
-  const nuevaPendiente = {
-    ...nueva,
-    estado: "Pendiente"
-  };
+		// Toda autorización nueva comienza como Pendiente
+		const nuevaPendiente = {
+			...nueva,
+			estado: "Pendiente",
+		};
 
-  setAutorizaciones((prev) => [
-    nuevaPendiente,
-    ...prev
-  ]);
+		setAutorizaciones((prev) => [nuevaPendiente, ...prev]);
 
-  return nuevaPendiente;
-};
+		return nuevaPendiente;
+	};
 
 	// Registrar Servicio Médico (CU07)
 	const registrarServicio = async ({
@@ -614,7 +641,29 @@ const crearAutorizacion = async ({ afiliadoId, proveedorId, procedimiento }) => 
 		}
 	};
 
+	const handleRegister = async (event) => {
+		event.preventDefault();
+		setLoginError("");
+		setLoginLoading(true);
+		try {
+			await authApi.register(registerForm);
+			setLoginForm({ usuario: registerForm.usuario, password: "" });
+			setRegisterForm({ usuario: "", password: "", nombre: "", cedula: "" });
+			setRegistering(false);
+			alert("Registro completado. Ya puedes iniciar sesión.");
+		} catch (error) {
+			const message =
+				error.response?.data?.message || "No fue posible completar el registro";
+			setLoginError(message);
+			if (error.response?.status === 400) alert("La cédula no es válida");
+		} finally {
+			setLoginLoading(false);
+		}
+	};
+
 	const handleLogout = () => {
+		setOwnAuthorizations([]);
+		setOwnError("");
 		localStorage.removeItem("arsfuturo_token");
 		setIsAuthenticated(false);
 		setCurrentUser(null);
@@ -644,62 +693,150 @@ const crearAutorizacion = async ({ afiliadoId, proveedorId, procedimiento }) => 
 						</p>
 					</div>
 
-					<form onSubmit={handleLogin} className="space-y-4">
-						<div>
-							<label
-								className="mb-1 block text-sm font-semibold text-[var(--text-body)]"
-								htmlFor="login-usuario"
-							>
-								Usuario
-							</label>
-							<div className="relative">
-								<User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
-								<Input
-									id="login-usuario"
-									value={loginForm.usuario}
-									onChange={(value) =>
-										setLoginForm((prev) => ({ ...prev, usuario: value }))
-									}
-									placeholder="Ingrese su usuario"
-									className="pl-9"
-									required
-								/>
+					{registering ? (
+						<form onSubmit={handleRegister} className="space-y-4">
+							<h2 className="text-xl font-semibold">Registro de afiliado</h2>
+							{[
+								{
+									key: "nombre",
+									label: "Nombre completo",
+									type: "text",
+									min: 2,
+									max: 120,
+									autocomplete: "name",
+								},
+								{
+									key: "cedula",
+									label: "Cédula",
+									type: "text",
+									min: 11,
+									max: 13,
+									autocomplete: "off",
+								},
+								{
+									key: "usuario",
+									label: "Usuario",
+									type: "text",
+									min: 3,
+									max: 120,
+									autocomplete: "username",
+								},
+								{
+									key: "password",
+									label: "Contraseña",
+									type: "password",
+									min: 6,
+									max: 72,
+									autocomplete: "new-password",
+								},
+							].map((field) => (
+								<div key={field.key}>
+									<label
+										htmlFor={`registro-${field.key}`}
+										className="mb-1 block text-sm font-semibold"
+									>
+										{field.label}
+									</label>
+									<Input
+										id={`registro-${field.key}`}
+										type={field.type}
+										value={registerForm[field.key]}
+										onChange={(value) =>
+											setRegisterForm((prev) => ({
+												...prev,
+												[field.key]: value,
+											}))
+										}
+										minLength={field.min}
+										maxLength={field.max}
+										autoComplete={field.autocomplete}
+										required
+									/>
+								</div>
+							))}
+							{loginError && (
+								<div
+									role="alert"
+									className="rounded-xl border tone-error p-3 text-sm"
+								>
+									{loginError}
+								</div>
+							)}
+							<Button type="submit" className="w-full" disabled={loginLoading}>
+								{loginLoading ? "Validando y registrando..." : "Crear cuenta"}
+							</Button>
+						</form>
+					) : (
+						<form onSubmit={handleLogin} className="space-y-4">
+							<div>
+								<label
+									className="mb-1 block text-sm font-semibold text-[var(--text-body)]"
+									htmlFor="login-usuario"
+								>
+									Usuario
+								</label>
+								<div className="relative">
+									<User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
+									<Input
+										id="login-usuario"
+										value={loginForm.usuario}
+										onChange={(value) =>
+											setLoginForm((prev) => ({ ...prev, usuario: value }))
+										}
+										placeholder="Ingrese su usuario"
+										className="pl-9"
+										required
+									/>
+								</div>
 							</div>
-						</div>
 
-						<div>
-							<label
-								className="mb-1 block text-sm font-semibold text-[var(--text-body)]"
-								htmlFor="login-contrasena"
-							>
-								Contraseña
-							</label>
-							<div className="relative">
-								<Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
-								<Input
-									id="login-contrasena"
-									type="password"
-									value={loginForm.password}
-									onChange={(value) =>
-										setLoginForm((prev) => ({ ...prev, password: value }))
-									}
-									placeholder="Ingrese su contraseña"
-									className="pl-9"
-									required
-								/>
+							<div>
+								<label
+									className="mb-1 block text-sm font-semibold text-[var(--text-body)]"
+									htmlFor="login-contrasena"
+								>
+									Contraseña
+								</label>
+								<div className="relative">
+									<Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
+									<Input
+										id="login-contrasena"
+										type="password"
+										value={loginForm.password}
+										onChange={(value) =>
+											setLoginForm((prev) => ({ ...prev, password: value }))
+										}
+										placeholder="Ingrese su contraseña"
+										className="pl-9"
+										required
+									/>
+								</div>
 							</div>
-						</div>
 
-						{loginError && (
-							<div className="rounded-xl border tone-error p-3 text-center text-sm">
-								{loginError}
-							</div>
-						)}
+							{loginError && (
+								<div className="rounded-xl border tone-error p-3 text-center text-sm">
+									{loginError}
+								</div>
+							)}
 
-						<Button type="submit" className="w-full" disabled={loginLoading}>
-							{loginLoading ? "Conectando..." : "Iniciar Sesión"}
-						</Button>
-					</form>
+							<Button type="submit" className="w-full" disabled={loginLoading}>
+								{loginLoading ? "Conectando..." : "Iniciar Sesión"}
+							</Button>
+						</form>
+					)}
+					<Button
+						type="button"
+						className="w-full mt-4"
+						disabled={loginLoading}
+						onClick={() => {
+							setRegistering(!registering);
+							setLoginError("");
+						}}
+					>
+						{registering
+							? "Volver al inicio de sesión"
+							: "Registrarse para consultar autorizaciones"}
+					</Button>
 
 					<div className="mt-6 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-sunken)] p-4">
 						<p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-accent-soft)]">
@@ -712,6 +849,48 @@ const crearAutorizacion = async ({ afiliadoId, proveedorId, procedimiento }) => 
 						</div>
 					</div>
 				</Card>
+			</div>
+		);
+	}
+
+	if (currentUser?.rol === "Afiliado") {
+		return (
+			<div className="app-shell min-h-screen text-[var(--text-body)]">
+				<AppHeader
+					currentUser={currentUser}
+					onLogout={handleLogout}
+					tema={tema}
+					onToggleTema={toggleTema}
+				/>
+				<main className="mx-auto max-w-5xl p-4 mobile-l:p-8">
+					<h1 className="text-3xl font-bold mb-4">Mis autorizaciones</h1>
+					<Button onClick={loadOwnAuthorizations} disabled={loading}>
+						Actualizar
+					</Button>
+					{loading ? (
+						<p role="status" className="my-4">
+							Consultando autorizaciones...
+						</p>
+					) : ownError ? (
+						<p role="alert" className="tone-error my-4 p-3">
+							{ownError}
+						</p>
+					) : ownAuthorizations.length === 0 ? (
+						<p className="my-4">No tienes autorizaciones registradas.</p>
+					) : (
+						<div className="grid gap-4 my-4">
+							{ownAuthorizations.map((item) => (
+								<Card key={item.id} className="p-4">
+									<h2 className="font-semibold">{item.procedure}</h2>
+									<p>Prestador: {item.provider?.name}</p>
+									<p>Fecha: {formatDate(item.date)}</p>
+									<p>Estado: {adaptAutorizacion(item).estado}</p>
+									<p>Copago: {currency(Number(item.copay))}</p>
+								</Card>
+							))}
+						</div>
+					)}
+				</main>
 			</div>
 		);
 	}

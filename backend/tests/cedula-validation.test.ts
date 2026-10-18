@@ -8,6 +8,13 @@ import {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("validateCedula", () => {
+	it("considera una cédula inválida cuando el servicio retorna 400", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(new Response(null, { status: 400 })),
+		);
+		await expect(validateCedula("00000000000")).resolves.toBe(false);
+	});
 	it("consulta la API oficial y devuelve el resultado de validacion", async () => {
 		const fetchMock = vi
 			.fn()

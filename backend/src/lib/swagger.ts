@@ -202,6 +202,43 @@ const spec = {
 				},
 			},
 		},
+		"/api/auth/register": {
+			post: {
+				tags: ["auth"],
+				summary: "Registra una cuenta con rol INSURED",
+				description:
+					"Valida la cédula mediante Cedula Validation. Un 400 externo o valid=false produce 400. La cuenta consulta únicamente sus autorizaciones por cédula.",
+				requestBody: jsonBody({
+					...objectSchema({
+						username: { type: "string", minLength: 3 },
+						password: {
+							type: "string",
+							minLength: 6,
+							maxLength: 72,
+							format: "password",
+						},
+						name: { type: "string", minLength: 2 },
+						nationalId: { type: "string", example: "00000000000" },
+					}),
+					required: ["username", "password", "name", "nationalId"],
+				}),
+				responses: {
+					201: { description: "Cuenta creada" },
+					400: { description: "Cédula no válida" },
+					409: { description: "Usuario o cédula ya registrados" },
+					422: { description: "Datos inválidos" },
+					503: { description: "Validación de cédula no disponible" },
+				},
+			},
+		},
+		"/api/mis-autorizaciones": {
+			get: {
+				tags: ["autorizaciones"],
+				summary: "Consulta las autorizaciones de la cédula del usuario INSURED",
+				security: bearerSecurity,
+				responses: { 200: okResponse, ...errorResponses },
+			},
+		},
 		"/api/auth/me": {
 			get: {
 				tags: ["auth"],

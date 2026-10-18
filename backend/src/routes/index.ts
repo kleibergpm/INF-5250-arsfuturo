@@ -82,7 +82,28 @@ const schemas = {
 	}),
 };
 r.post("/auth/login", validate(authBody), asyncHandler(authController.login));
+r.post(
+	"/auth/register",
+	validate(
+		authBody.extend({
+			name: z.string().trim().min(2).max(120),
+			nationalId: z
+				.string()
+				.trim()
+				.transform((value) => value.replace(/-/g, ""))
+				.pipe(z.string().regex(/^\d{11}$/, "La cédula debe tener 11 dígitos")),
+			password: z.string().min(6).max(72),
+		}),
+	),
+	asyncHandler(authController.register),
+);
 r.get("/auth/me", authenticate, asyncHandler(authController.me));
+r.get(
+	"/mis-autorizaciones",
+	authenticate,
+	allow("INSURED"),
+	asyncHandler(authController.myAuthorizations),
+);
 const resource = (
 	path,
 	model,
@@ -294,6 +315,7 @@ r.patch(
 r.get(
 	"/dashboard/resumen",
 	authenticate,
+	allow("ADMINISTRATOR", "AGENT", "SUPERVISOR"),
 	asyncHandler(businessController.dashboard),
 );
 export default r;

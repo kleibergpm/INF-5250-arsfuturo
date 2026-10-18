@@ -80,13 +80,31 @@ Para crear una migración nueva a partir de cambios en el schema:
 pnpm run prisma:migrate
 ```
 
-> `sql/` contiene scripts manuales de un esquema en español que quedó obsoleto. No los ejecutes sobre una base administrada por Prisma: sus tablas y columnas no coinciden con `prisma/schema.prisma` y la API responde `P2022 ColumnNotFound`.
+### Instalación manual con SQL (alternativa)
+
+`sql/init-postgresql.sql` contiene el esquema consolidado actual, incluido `INSURED` y `users.national_id`. `sql/seed-postgresql.sql` contiene datos demo compatibles con ese esquema. Sobre una base **vacía creada previamente**, desde `backend/`:
+
+```bash
+psql -d ars_futuro -v ON_ERROR_STOP=1 -f sql/init-postgresql.sql
+psql -d ars_futuro -v ON_ERROR_STOP=1 -f sql/seed-postgresql.sql
+```
+
+No hace falta ejecutar el SQL de cada migración manualmente. El flujo recomendado al clonar sigue siendo `pnpm exec prisma migrate deploy` y `pnpm run prisma:seed`; Prisma aplica automáticamente el historial en orden. Se conservan los archivos de `prisma/migrations/` para actualizar bases existentes.
+
+Elige una sola forma de inicializar y un solo seed. No ejecutes `init-postgresql.sql` sobre una base existente ni combines los dos seeds. Si inicializaste con SQL y luego vas a usar Prisma Migrate, registra primero las migraciones incluidas en el esquema consolidado (sin volver a ejecutarlas):
+
+```bash
+pnpm exec prisma migrate resolve --applied 20260917235148_first_migration
+pnpm exec prisma migrate resolve --applied 20261018000000_insured_registration
+```
+
 
 Los datos iniciales del seed incluyen:
 
 - `admin / admin123` y `admin2 / admin456` (administradores)
 - `agente / agente123`, `agente2 / agente456` y `agente3 / agente789` (agentes)
 - `supervisor / super123` y `supervisor2 / super456` (supervisores)
+- `afiliado / afiliado123` (rol `INSURED`, cédula ficticia `00112345678`, asociada al primer afiliado demo)
 
 ## Ejecutar la API
 
@@ -101,9 +119,9 @@ Verifica:
 
 ## API
 
-Todos los endpoints, salvo `POST /api/auth/login` y `/health`, requieren autenticación con `Authorization: Bearer <token>`.
+Todos los endpoints, salvo `POST /api/auth/login`, `POST /api/auth/register` y `/health`, requieren autenticación con `Authorization: Bearer <token>`.
 
-Los roles disponibles son `ADMINISTRATOR`, `AGENT` y `SUPERVISOR`, y cada ruta declara explícitamente quién puede usarla.
+Los roles disponibles son `ADMINISTRATOR`, `AGENT`, `SUPERVISOR` e `INSURED`, y cada ruta declara explícitamente quién puede usarla.
 
 ### Recursos principales
 
@@ -113,6 +131,7 @@ Los roles disponibles son `ADMINISTRATOR`, `AGENT` y `SUPERVISOR`, y cada ruta d
 - `/api/polizas`
 - `/api/reclamos`
 - `/api/autorizaciones`
+- `/api/mis-autorizaciones` (consulta propia del rol `INSURED`)
 - `/api/servicios`
 - `/api/pagos`
 - `/api/facturas`
@@ -176,6 +195,7 @@ backend/
 │   ├── middleware/        # autenticación, autorización, validación y errores
 │   ├── routes/            # registro de rutas, permisos y esquemas Zod
 │   ├── services/          # lógica reutilizable del dominio
+│   ├── Servicios/         # integraciones con servicios externos
 │   ├── app.ts             # configuración de Express y montaje de rutas
 │   └── server.ts          # arranque del servidor
 ├── tests/                 # pruebas automatizadas
