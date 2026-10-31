@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "arsfuturo-frontend-design": {
+      "type": "stdio",
+      "command": "corepack",
+      "args": ["pnpm", "--dir", "mcp/frontend-design", "start"]
+    }
+  }
+}

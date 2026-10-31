@@ -1,9 +1,9 @@
-import { prisma } from '../config/prisma.js';
+import { prisma } from "../lib/prisma.js";
 
 export class NotificationService {
 	constructor(private readonly database = prisma) {}
 
-	create = (data) => this.database.notificacion.create({ data });
+	create = (data) => this.database.notification.create({ data });
 }
 
 export const notificationService = new NotificationService();

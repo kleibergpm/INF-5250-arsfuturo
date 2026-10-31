@@ -1,5 +1,290 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap");
+@import "tailwindcss";
 
-html, body, #root { height: 100%; }
+@theme {
+	--breakpoint-mobile-m: 430px;
+	--breakpoint-mobile-l: 768px;
+}
+
+:root {
+	color-scheme: light;
+	font-family: "DM Sans", ui-sans-serif, sans-serif;
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+	--bg: #f4f1eb;
+	--bg-tint-a: rgba(38, 158, 154, 0.13);
+	--bg-tint-b: rgba(239, 117, 83, 0.11);
+	--grid-line: rgba(20, 43, 54, 0.025);
+	--surface: rgba(255, 253, 249, 0.78);
+	--surface-solid: #fffdf9;
+	--surface-veil: rgba(255, 255, 255, 0.6);
+	--surface-sunken: #eef5f2;
+	--card-border: rgba(20, 43, 54, 0.1);
+	--card-shadow: rgba(20, 43, 54, 0.07);
+	--focus-ring: rgba(38, 158, 154, 0.35);
+	--border: #cbd8d5;
+	--border-soft: #d7e1de;
+	--border-faint: #e3ebe8;
+	--text: #142b36;
+	--text-body: #24424d;
+	--text-muted: #6d8585;
+	--text-faint: #78908f;
+	--text-placeholder: #7d9394;
+	--text-accent-soft: #527171;
+	--text-nav: #587173;
+	--accent: #176b70;
+	--accent-hover: #12585c;
+	--accent-ink: #ffffff;
+	--accent-soft: #269e9a;
+	--accent-glow: rgba(23, 107, 112, 0.2);
+	--ok: #23856f;
+	--ok-hover: #1b6e5d;
+	--warn: #c47b2b;
+	--warn-hover: #a96622;
+	--danger: #c95c4e;
+	--danger-hover: #ad493d;
+	--overlay: rgba(15, 23, 42, 0.4);
+	--hover-veil: rgba(15, 23, 42, 0.06);
+	--row-hover: #eef5f2;
+	--icon-info: oklch(58.8% 0.158 241.966);
+	--icon-warn: oklch(66.6% 0.179 58.318);
+	--icon-ok: oklch(59.6% 0.145 163.225);
+	--icon-alt: oklch(51.1% 0.262 276.966);
+	--tone-ok-bg: oklch(97.9% 0.021 166.113);
+	--tone-ok-ink: oklch(50.8% 0.118 165.612);
+	--tone-ok-border: oklch(90.5% 0.093 164.15);
+	--tone-error-bg: oklch(96.9% 0.015 12.422);
+	--tone-error-ink: oklch(51.4% 0.222 16.935);
+	--tone-error-border: oklch(89.2% 0.058 10.001);
+	--tone-warn-bg: oklch(98.7% 0.022 95.277);
+	--tone-warn-ink: oklch(55.5% 0.163 48.998);
+	--tone-warn-border: oklch(92.4% 0.12 95.746);
+	--tone-info-bg: oklch(97.7% 0.013 236.62);
+	--tone-info-ink: oklch(50% 0.134 242.749);
+	--tone-info-border: oklch(90.1% 0.058 230.902);
+	--tone-neutral-bg: oklch(98.4% 0.003 247.858);
+	--tone-neutral-ink: oklch(37.2% 0.044 257.287);
+	--tone-neutral-border: oklch(92.9% 0.013 255.508);
+	--tone-notif-ok-bg: oklch(98.2% 0.018 155.826);
+	--tone-notif-ok-border: oklch(92.5% 0.084 155.995);
+	--tone-notif-ok-ink: oklch(62.7% 0.194 149.214);
+	--tone-notif-error-bg: oklch(97.1% 0.013 17.38);
+	--tone-notif-error-border: oklch(88.5% 0.062 18.334);
+	--tone-notif-error-ink: oklch(57.7% 0.245 27.325);
+	--tone-notif-info-bg: oklch(97% 0.014 254.604);
+	--tone-notif-info-border: oklch(88.2% 0.059 254.128);
+	--tone-notif-info-ink: oklch(54.6% 0.245 262.881);
+}
+
+[data-theme="oscuro"] {
+	color-scheme: dark;
+
+	/* Teal profundo: conserva la identidad del tema claro sobre superficies
+	   verde-azuladas. Nunca usamos negro puro, ni #000 ni #fff como color de UI. */
+	--bg: #0b1214;
+	--bg-tint-a: rgba(45, 212, 191, 0.1);
+	--bg-tint-b: rgba(251, 146, 60, 0.06);
+	--grid-line: rgba(45, 212, 191, 0.05);
+	--surface: #101b1e;
+	--surface-solid: #16272b;
+	--surface-veil: rgba(255, 255, 255, 0.05);
+	--surface-sunken: #0e1a1c;
+	--card-border: #1f3438;
+	--card-shadow: rgba(2, 10, 12, 0.55);
+	--focus-ring: rgba(45, 212, 191, 0.45);
+	--border: #2a4247;
+	--border-soft: #203338;
+	--border-faint: #18272a;
+	--text: #e8f1f0;
+	--text-body: #c2d3d3;
+	--text-muted: #8ba3a3;
+	--text-faint: #77908f;
+	--text-placeholder: #6b8383;
+	--text-accent-soft: #7fd4cd;
+	--text-nav: #a3bcbc;
+
+	/* El acento pasa a un teal brillante porque sobre fondo oscuro un tono
+	   oscuro no alcanza el contraste necesario. accent-ink es el texto sobre él. */
+	--accent: #2dd4bf;
+	--accent-hover: #5eead4;
+	--accent-ink: #06201f;
+	--accent-soft: #14b8a6;
+	--accent-glow: rgba(45, 212, 191, 0.28);
+
+	/* Estados en color: es lo que el tema claro ya usa y lo que da
+	   significado a los badges, notificaciones e iconos. */
+	--ok: #34d399;
+	--ok-hover: #6ee7b7;
+	--warn: #fbbf24;
+	--warn-hover: #fcd34d;
+	--danger: #f87171;
+	--danger-hover: #fca5a5;
+	--overlay: rgba(2, 10, 12, 0.72);
+	--hover-veil: rgba(45, 212, 191, 0.1);
+	--row-hover: #16262a;
+	--icon-info: #60a5fa;
+	--icon-warn: #fbbf24;
+	--icon-ok: #34d399;
+	--icon-alt: #a78bfa;
+
+	/* Badges: fondo tenue del color del estado, borde y tinta más saturados. */
+	--tone-ok-bg: oklch(24.5% 0.045 168.326);
+	--tone-ok-ink: #6ee7b7;
+	--tone-ok-border: oklch(38% 0.075 166.113);
+	--tone-error-bg: oklch(25.5% 0.055 17.5);
+	--tone-error-ink: #fca5a5;
+	--tone-error-border: oklch(40% 0.095 17.38);
+	--tone-warn-bg: oklch(27% 0.055 75.277);
+	--tone-warn-ink: #fcd34d;
+	--tone-warn-border: oklch(41% 0.085 75.746);
+	--tone-info-bg: oklch(26% 0.045 236.62);
+	--tone-info-ink: #93c5fd;
+	--tone-info-border: oklch(40% 0.09 240.902);
+	--tone-neutral-bg: #16272b;
+	--tone-neutral-ink: #b5c9c9;
+	--tone-neutral-border: #2a4247;
+
+	--tone-notif-ok-bg: oklch(23.5% 0.04 166.113);
+	--tone-notif-ok-border: oklch(36% 0.07 166.113);
+	--tone-notif-ok-ink: #6ee7b7;
+	--tone-notif-error-bg: oklch(25% 0.05 17.38);
+	--tone-notif-error-border: oklch(38% 0.09 17.38);
+	--tone-notif-error-ink: #fca5a5;
+	--tone-notif-info-bg: oklch(24.5% 0.045 245);
+	--tone-notif-info-border: oklch(36% 0.08 245);
+	--tone-notif-info-ink: #93c5fd;
+}
+
+body {
+	margin: 0;
+	min-width: 320px;
+	color: var(--text-body);
+	background:
+		radial-gradient(circle at 8% 2%, var(--bg-tint-a), transparent 28rem),
+		radial-gradient(circle at 92% 0%, var(--bg-tint-b), transparent 25rem),
+		var(--bg);
+	transition:
+		background-color 200ms ease,
+		color 200ms ease;
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+}
+
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+summary {
+	cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+	cursor: not-allowed;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+	outline: 3px solid var(--focus-ring);
+	outline-offset: 2px;
+}
+
+.font-display {
+	font-family: "Space Grotesk", "DM Sans", sans-serif;
+}
+
+.app-shell {
+	background-image:
+		linear-gradient(var(--grid-line) 1px, transparent 1px),
+		linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+	background-size: 32px 32px;
+}
+
+.app-surface {
+	background: var(--surface);
+	border: 1px solid var(--card-border);
+	box-shadow: 0 18px 45px var(--card-shadow);
+	backdrop-filter: blur(16px);
+}
+
+.data-table thead tr {
+	border-bottom: 1px solid var(--border);
+	color: var(--text-muted);
+	font-size: 0.7rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.data-table tbody tr {
+	border-bottom: 1px solid var(--border-faint);
+	transition: background-color 160ms ease;
+}
+
+.data-table tbody tr:hover {
+	background-color: var(--row-hover);
+}
+
+.data-table th,
+.data-table td {
+	padding-top: 0.8rem;
+	padding-bottom: 0.8rem;
+}
+
+.tone-ok {
+	background-color: var(--tone-ok-bg);
+	border-color: var(--tone-ok-border);
+	color: var(--tone-ok-ink);
+}
+
+.tone-error {
+	background-color: var(--tone-error-bg);
+	border-color: var(--tone-error-border);
+	color: var(--tone-error-ink);
+}
+
+.tone-warn {
+	background-color: var(--tone-warn-bg);
+	border-color: var(--tone-warn-border);
+	color: var(--tone-warn-ink);
+}
+
+.tone-info {
+	background-color: var(--tone-info-bg);
+	border-color: var(--tone-info-border);
+	color: var(--tone-info-ink);
+}
+
+.tone-neutral {
+	background-color: var(--tone-neutral-bg);
+	border-color: var(--tone-neutral-border);
+	color: var(--tone-neutral-ink);
+}
+
+.tone-notif-ok {
+	background-color: var(--tone-notif-ok-bg);
+	border-color: var(--tone-notif-ok-border);
+	color: var(--tone-notif-ok-ink);
+}
+
+.tone-notif-error {
+	background-color: var(--tone-notif-error-bg);
+	border-color: var(--tone-notif-error-border);
+	color: var(--tone-notif-error-ink);
+}
+
+.tone-notif-info {
+	background-color: var(--tone-notif-info-bg);
+	border-color: var(--tone-notif-info-border);
+	color: var(--tone-notif-info-ink);
+}
+
+html,
+body,
+#root {
+	height: 100%;
+}

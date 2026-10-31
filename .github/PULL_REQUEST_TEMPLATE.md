@@ -33,19 +33,6 @@ Cierra: #(issue number)
 
 Si los cambios incluyen cambios visuales, proporciona screenshots:
 
-## 🧪 Cómo se ha probado esto
-
-Describe los pasos que seguiste para probar los cambios:
-
-1. 
-2. 
-3. 
-
-## 📦 Configuración del entorno
-
-- Node.js version:
-- npm/yarn version:
-- OS:
 
 ## 📝 Notas adicionales
 

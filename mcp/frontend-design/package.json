@@ -1,0 +1,14 @@
+{
+  "name": "arsfuturo-frontend-design-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP local para consultar y revisar las convenciones de diseño del FrontEnd de ARS Futuro",
+  "scripts": {
+    "start": "node src/server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
+    "zod": "^4.0.0"
+  }
+}

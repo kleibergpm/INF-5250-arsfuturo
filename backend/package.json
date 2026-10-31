@@ -1,39 +1,48 @@
 {
-  "name": "ars-futuro-backend",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
-    "typecheck": "tsc --noEmit",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "prisma db seed",
-    "test": "vitest run"
-  },
-  "prisma": { "seed": "tsx prisma/seed.ts" },
-  "dependencies": {
-    "@prisma/client": "^6.7.0",
-    "bcryptjs": "^2.4.3",
-    "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
-    "express": "^4.21.2",
-    "jsonwebtoken": "^9.0.2",
-    "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1",
-    "zod": "^3.24.3"
-  },
-  "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.1",
-    "@types/jsonwebtoken": "^9.0.9",
-    "@types/swagger-jsdoc": "^6.0.4",
-    "@types/swagger-ui-express": "^4.1.8",
-    "prisma": "^6.7.0",
-    "supertest": "^7.1.0",
-    "tsx": "^4.19.3",
-    "typescript": "^5.8.3",
-    "vitest": "^3.1.2"
-  }
+	"name": "ars-futuro-backend",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "tsx watch src/server.ts",
+		"start": "tsx src/server.ts",
+		"typecheck": "tsc --noEmit",
+		"prisma:generate": "prisma generate",
+		"prisma:migrate": "prisma migrate dev",
+		"prisma:seed": "prisma db seed",
+		"test": "vitest run",
+		"check": "biome check src tests prisma",
+		"check:fix": "biome check --write src tests prisma"
+	},
+	"prisma": {
+		"seed": "tsx prisma/seed.ts"
+	},
+	"dependencies": {
+		"@prisma/adapter-pg": "^7.10.0",
+		"@prisma/client": "7.10.0",
+		"bcryptjs": "3.0.3",
+		"cors": "^2.8.6",
+		"dotenv": "18.0.0",
+		"express": "5.2.1",
+		"helmet": "^8.3.0",
+		"jsonwebtoken": "9.0.3",
+		"pg": "^8.23.0",
+		"swagger-jsdoc": "6.3.0",
+		"swagger-ui-express": "5.0.1",
+		"zod": "4.6.5"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.5.14",
+		"@types/cors": "2.8.19",
+		"@types/express": "5.0.6",
+		"@types/jsonwebtoken": "9.0.10",
+		"@types/pg": "^8.23.1",
+		"@types/swagger-jsdoc": "6.0.4",
+		"@types/swagger-ui-express": "4.1.8",
+		"prisma": "7.10.0",
+		"supertest": "7.2.2",
+		"tsx": "4.23.13",
+		"typescript": "7.0.2",
+		"vitest": "5.0.1"
+	}
 }

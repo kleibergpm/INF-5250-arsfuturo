@@ -1,1 +1,6 @@
-export const validate = (schema) => (req, res, next) => { req.body = schema.parse(req.body); next(); };
+export const validate =
+	(schema, source = "body") =>
+	(req, res, next) => {
+		req[source] = schema.parse(req[source]);
+		next();
+	};
