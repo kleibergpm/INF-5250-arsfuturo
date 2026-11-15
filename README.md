@@ -149,22 +149,7 @@ cd arsfuturo
 corepack enable
 ```
 
-### 3) Instalar las dependencias de ambos paquetes
-
-```bash
-pnpm run install:all
-```
-
-El script instala `backend/` y `FrontEnd/` y genera el cliente de Prisma. Si prefieres hacerlo por separado:
-
-```bash
-cd backend
-pnpm install
-cd ../FrontEnd
-pnpm install
-```
-
-### 4) Copiar variables de entorno
+### 3) Copiar variables de entorno
 
 En `backend/`:
 
@@ -184,7 +169,7 @@ En `FrontEnd/`:
 cp .env.example .env
 ```
 
-### 5) Crear la base de datos PostgreSQL
+### 4) Crear la base de datos PostgreSQL
 
 Asegúrate de tener PostgreSQL 14 o superior y una base llamada `ars_futuro`:
 
@@ -192,7 +177,7 @@ Asegúrate de tener PostgreSQL 14 o superior y una base llamada `ars_futuro`:
 createdb ars_futuro
 ```
 
-### 6) Configurar el archivo `.env` del backend
+### 5) Configurar el archivo `.env` del backend
 
 Ejemplo:
 
@@ -205,6 +190,22 @@ CORS_ORIGIN="http://localhost:5173"
 ```
 
 `SHADOW_DATABASE_URL` es opcional: solo se necesita para `prisma migrate dev`.
+
+### 6) Instalar las dependencias de ambos paquetes
+
+```bash
+pnpm run install:all
+```
+
+El script instala `backend/` y `FrontEnd/` y genera el cliente de Prisma. Si prefieres hacerlo por separado:
+
+```bash
+cd backend
+pnpm install
+cd ../FrontEnd
+pnpm install
+```
+
 
 ## Configuración de entorno
 
