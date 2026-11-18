@@ -1,4 +1,4 @@
-import { prisma } from "../lib/prisma.ts";
+import { prisma } from "../lib/prisma.js";
 
 export class CrudController {
 	constructor(
@@ -7,7 +7,7 @@ export class CrudController {
 		private readonly include,
 	) {}
 
-	list = async (req, res) =>
+	list = async (_req, res) =>
 		res.json(
 			await this.database[this.model].findMany({
 				include: this.include,

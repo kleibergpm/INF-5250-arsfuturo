@@ -1,5 +1,5 @@
-import "dotenv/config";
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
+import { readDatabaseUrl } from "./src/lib/database-config.js";
 
 export default defineConfig({
 	schema: "prisma/schema.prisma",
@@ -8,7 +8,9 @@ export default defineConfig({
 		seed: "tsx prisma/seed.ts",
 	},
 	datasource: {
-		url: env("DATABASE_URL"),
-		shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,
+		url: readDatabaseUrl("DATABASE_URL"),
+		shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL
+			? readDatabaseUrl("SHADOW_DATABASE_URL")
+			: undefined,
 	},
 });

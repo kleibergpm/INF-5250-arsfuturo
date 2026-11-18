@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
-import { Role } from "../src/lib/generated/client/index.js";
-import { prisma } from "../src/lib/prisma.ts";
+import { ConfigError } from "../src/lib/config-error.js";
+import { type PrismaClient, Role } from "../src/lib/generated/client/index.js";
+import { log } from "../src/lib/logger.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -82,7 +83,7 @@ const plans = [
 |--------------------------------------------------------------------------
 */
 
-async function main() {
+async function seed(prisma: PrismaClient) {
 	const users = [
 		{
 			username: "admin",
@@ -623,36 +624,31 @@ async function main() {
     |--------------------------------------------------------------------------
     */
 
-	console.log("");
-	console.log("==============================================");
-	console.log("       MEDISALUD - SEED COMPLETADO");
-	console.log("==============================================");
-	console.log("");
-	console.log("Usuarios creados:");
-	console.log("----------------------------------------------");
-	console.log("Administrador : admin / admin123");
-	console.log("Administrador : admin2 / admin456");
-	console.log("Agente        : agente / agente123");
-	console.log("Agente        : agente2 / agente456");
-	console.log("Agente        : agente3 / agente789");
-	console.log("Supervisor    : supervisor / super123");
-	console.log("Supervisor    : supervisor2 / super456");
-	console.log("Afiliado      : afiliado / afiliado123");
-	console.log("");
-	console.log(`Planes       : ${plans.length}`);
-	console.log(`Proveedores  : ${providers.length}`);
-	console.log(`Pólizas      : ${policies.length}`);
-	console.log(`Asegurados   : ${insuredPeople.length}`);
-	console.log("");
-	console.log("Datos demo creados correctamente.");
-	console.log("==============================================");
+	log("info", "seed.completed", {
+		plans: plans.length,
+		providers: providers.length,
+		policies: policies.length,
+		insuredPeople: insuredPeople.length,
+	});
 }
 
-main()
-	.catch((error) => {
-		console.error("Error ejecutando seed:", error);
-		process.exit(1);
-	})
-	.finally(async () => {
+async function main() {
+	const { prisma } = await import("../src/lib/prisma.js");
+	try {
+		await seed(prisma);
+	} finally {
 		await prisma.$disconnect();
-	});
+	}
+}
+
+main().catch((error: unknown) => {
+	if (error instanceof ConfigError) {
+		log("error", "config.invalid", {
+			component: "seed",
+			variables: error.variables,
+		});
+	} else {
+		log("error", "seed.failed", undefined);
+	}
+	process.exitCode = 1;
+});
