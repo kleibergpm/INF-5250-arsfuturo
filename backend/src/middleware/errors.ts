@@ -11,6 +11,11 @@ export function errorHandler(err, _req, res, next) {
 	log("error", "http.error", { requestId: res.locals.requestId });
 	if (res.headersSent)
 		return next(new Error("Error después de enviar cabeceras"));
+	if (err instanceof BusinessRuleError)
+		return res.status(err.status).json({
+			error: err.status === 409 ? "CONFLICT" : "VALIDATION_ERROR",
+			message: err.message,
+		});
 	if (
 		err instanceof Prisma.PrismaClientKnownRequestError &&
 		err.code === "P2002"
@@ -41,3 +46,5 @@ export function errorHandler(err, _req, res, next) {
 }
 export const asyncHandler = (fn) => (req, res, next) =>
 	Promise.resolve(fn(req, res, next)).catch(next);
+
+import { BusinessRuleError } from "../lib/business-rule-error.js";

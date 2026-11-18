@@ -20,7 +20,7 @@ const database = vi.hoisted(() => ({
 		update: vi.fn(),
 		updateMany: vi.fn(),
 	},
-	invoice: { update: vi.fn(), findUnique: vi.fn() },
+	invoice: { updateMany: vi.fn(), findUniqueOrThrow: vi.fn() },
 	notification: { create: vi.fn() },
 }));
 vi.mock("../src/lib/prisma.js", () => ({ prisma: database }));
@@ -220,7 +220,8 @@ describe("SCRUM-39, SCRUM-41 y SCRUM-44 · Afiliados, pólizas y proveedores", (
 	});
 
 	it("registra el pago aunque la póliza no cumpla las condiciones de reactivación", async () => {
-		database.invoice.update.mockResolvedValue({
+		database.invoice.updateMany.mockResolvedValue({ count: 1 });
+		database.invoice.findUniqueOrThrow.mockResolvedValue({
 			id,
 			status: "PAID",
 			policyId: policy.id,

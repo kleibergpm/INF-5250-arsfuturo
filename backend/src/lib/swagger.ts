@@ -13,6 +13,11 @@ const errorResponses = {
 	403: { description: "Sin permisos suficientes" },
 	422: { description: "Datos invalidos" },
 };
+const financialStateErrors = {
+	404: { description: "Recurso inexistente" },
+	409: { description: "Conflicto con el estado o referencia registrados" },
+	...errorResponses,
+};
 const jsonBody = (schema: Record<string, unknown>) => ({
 	required: true,
 	content: { "application/json": { schema } },
@@ -362,6 +367,7 @@ const spec = {
 			get: {
 				tags: ["servicios"],
 				summary: "Lista servicios medicos",
+				description: "Incluye paymentEligible, payableAmount y paymentStatus.",
 				security: bearerSecurity,
 				responses: { 200: okResponse, ...errorResponses },
 			},
@@ -390,6 +396,8 @@ const spec = {
 			post: {
 				tags: ["pagos"],
 				summary: "Emite un pago",
+				description:
+					"El importe debe ser igual al costo menos el copago. Los reintentos idénticos devuelven el pago guardado.",
 				security: bearerSecurity,
 				requestBody: jsonBody(
 					objectSchema({
@@ -399,7 +407,11 @@ const spec = {
 						method: { type: "string" },
 					}),
 				),
-				responses: { 201: okResponse, ...errorResponses },
+				responses: {
+					200: okResponse,
+					201: okResponse,
+					...financialStateErrors,
+				},
 			},
 		},
 		"/api/facturas": {
@@ -414,11 +426,13 @@ const spec = {
 			post: {
 				tags: ["facturas"],
 				summary: "Genera facturas",
+				description:
+					"Completa un mes YYYY-MM y devuelve todas sus facturas. El día 10 del período es el vencimiento.",
 				security: bearerSecurity,
 				requestBody: jsonBody(
 					objectSchema({ period: { type: "string", example: "2026-09" } }),
 				),
-				responses: { 201: okResponse, ...errorResponses },
+				responses: { 200: okResponse, 201: okResponse, ...errorResponses },
 			},
 		},
 		"/api/facturas/{id}/pagar": {
@@ -428,34 +442,34 @@ const spec = {
 				summary: "Marca una factura como pagada",
 				security: bearerSecurity,
 				requestBody: jsonBody(objectSchema({ reference: { type: "string" } })),
-				responses: { 200: okResponse, ...errorResponses },
+				responses: { 200: okResponse, ...financialStateErrors },
 			},
 		},
 		"/api/facturas/{id}/recordatorio": {
 			parameters: [uuidParameter],
 			patch: {
 				tags: ["facturas"],
-				summary: "Envia recordatorio de factura",
+				summary: "Registra el recordatorio de una factura impaga",
 				security: bearerSecurity,
-				responses: { 200: okResponse, ...errorResponses },
+				responses: { 200: okResponse, ...financialStateErrors },
 			},
 		},
 		"/api/facturas/{id}/gracia": {
 			parameters: [uuidParameter],
 			patch: {
 				tags: ["facturas"],
-				summary: "Pasa una factura a periodo de gracia",
+				summary: "Concede gracia a una factura vencida e impaga",
 				security: bearerSecurity,
-				responses: { 200: okResponse, ...errorResponses },
+				responses: { 200: okResponse, ...financialStateErrors },
 			},
 		},
 		"/api/facturas/{id}/suspender": {
 			parameters: [uuidParameter],
 			patch: {
 				tags: ["facturas"],
-				summary: "Suspende una factura",
+				summary: "Suspende la póliza vigente por una factura vencida e impaga",
 				security: bearerSecurity,
-				responses: { 200: okResponse, ...errorResponses },
+				responses: { 204: okResponse, ...financialStateErrors },
 			},
 		},
 		"/api/dashboard/resumen": {
