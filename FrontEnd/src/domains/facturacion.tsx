@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { FileDown, RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Factura, Poliza } from "../api/adapters";
@@ -253,15 +253,17 @@ export function FacturacionTab({
 				</div>
 			</Card>
 
-			{openPago && (
-				<RegistrarPagoPrimaModal
-					open={openPago}
-					onClose={() => setOpenPago(false)}
-					factura={facturaSel}
-					onRegistrarPago={(input) => ejecutar(() => onRegistrarPago(input))}
-					procesando={procesando}
-				/>
-			)}
+			<AnimatePresence>
+				{openPago && (
+					<RegistrarPagoPrimaModal
+						open={openPago}
+						onClose={() => setOpenPago(false)}
+						factura={facturaSel}
+						onRegistrarPago={(input) => ejecutar(() => onRegistrarPago(input))}
+						procesando={procesando}
+					/>
+				)}
+			</AnimatePresence>
 		</motion.div>
 	);
 }

@@ -1,4 +1,9 @@
-import { AnimatePresence, motion } from "framer-motion";
+import {
+	AnimatePresence,
+	motion,
+	useIsPresent,
+	useReducedMotion,
+} from "framer-motion";
 import { Bell, CheckCircle2, X, XCircle } from "lucide-react";
 import {
 	type ButtonHTMLAttributes,
@@ -8,6 +13,7 @@ import {
 	useId,
 	useLayoutEffect,
 	useRef,
+	useState,
 } from "react";
 
 export const cls = (...values: Array<string | false | null | undefined>) =>
@@ -231,29 +237,42 @@ export const Divider = ({ className = "" }: { className?: string }) => (
 );
 
 export const ModalActions = ({ children }: { children: ReactNode }) => (
-	<footer className="sticky bottom-0 mt-3 flex flex-wrap justify-end gap-3 border-t border-[var(--border-soft)] bg-[var(--surface-solid)] py-2">
+	<footer className="sticky bottom-0 mt-5 flex flex-wrap justify-end gap-3 border-t border-[var(--border-soft)] bg-[var(--surface-solid)] pb-2 pt-4">
 		{children}
 	</footer>
 );
 
-export function Modal({
-	open,
+type ModalProps = {
+	open: boolean;
+	onClose: () => void;
+	onAfterClose?: () => void;
+	title: ReactNode;
+	children: ReactNode;
+};
+
+export function Modal({ open, onAfterClose, ...props }: ModalProps) {
+	const parentPresent = useIsPresent();
+	return (
+		<AnimatePresence propagate onExitComplete={onAfterClose}>
+			{open && parentPresent && <ModalDialog key="native-modal" {...props} />}
+		</AnimatePresence>
+	);
+}
+
+function ModalDialog({
 	onClose,
 	title,
 	children,
-}: {
-	open: boolean;
-	onClose: () => void;
-	title: ReactNode;
-	children: ReactNode;
-}) {
+}: Omit<ModalProps, "open" | "onAfterClose">) {
 	const dialogRef = useRef<HTMLDialogElement>(null);
 	const titleRef = useRef<HTMLHeadingElement>(null);
 	const titleId = useId();
+	const isPresent = useIsPresent();
+	const reduceMotion = useReducedMotion();
 
 	useLayoutEffect(() => {
 		const dialog = dialogRef.current;
-		if (!open || !dialog) return;
+		if (!dialog) return;
 		const trigger = document.activeElement;
 		dialog.showModal();
 		titleRef.current?.focus();
@@ -262,21 +281,31 @@ export function Modal({
 			if (trigger instanceof HTMLElement && trigger.isConnected)
 				trigger.focus();
 		};
-	}, [open]);
+	}, []);
 
-	if (!open) return null;
 	return (
-		<dialog
+		<motion.dialog
 			ref={dialogRef}
 			aria-labelledby={titleId}
+			initial={reduceMotion ? false : { opacity: 0, y: 10, scale: 0.985 }}
+			animate={{ opacity: 1, y: 0, scale: 1 }}
+			exit={reduceMotion ? undefined : { opacity: 0, y: 8, scale: 0.985 }}
+			transition={{ duration: reduceMotion ? 0 : 0.18, ease: "easeOut" }}
+			data-exiting={!isPresent}
+			data-reduced-motion={Boolean(reduceMotion)}
 			onCancel={(event) => {
 				event.preventDefault();
-				onClose();
+				if (isPresent) onClose();
 			}}
 			onClick={(event) => {
-				if (event.target === event.currentTarget) onClose();
+				if (isPresent && event.target === event.currentTarget) onClose();
 			}}
 			onKeyDown={(event) => {
+				if (!isPresent) {
+					event.preventDefault();
+					event.stopPropagation();
+					return;
+				}
 				if (event.key !== "Tab") return;
 				const controls = Array.from(
 					event.currentTarget.querySelectorAll<HTMLElement>(
@@ -302,7 +331,13 @@ export function Modal({
 					first?.focus();
 				}
 			}}
-			className="m-auto max-h-[90dvh] w-[calc(100%_-_1rem)] max-w-2xl overflow-y-auto scroll-pb-20 rounded-[1.35rem] bg-[var(--surface-solid)] p-0 text-[var(--text-body)] shadow-2xl backdrop:bg-[var(--overlay)] backdrop:backdrop-blur-[1px] sm:w-[calc(100%_-_2rem)]"
+			onSubmitCapture={(event) => {
+				if (!isPresent) {
+					event.preventDefault();
+					event.stopPropagation();
+				}
+			}}
+			className="app-modal m-auto max-h-[90dvh] w-[calc(100%_-_1rem)] max-w-2xl overflow-y-auto scroll-pb-20 rounded-[1.35rem] bg-[var(--surface-solid)] p-0 text-[var(--text-body)] shadow-2xl backdrop:bg-[var(--overlay)] backdrop:backdrop-blur-[1px] data-[exiting=true]:pointer-events-none sm:w-[calc(100%_-_2rem)]"
 		>
 			<div className="p-3 sm:p-5">
 				<div className="flex items-center justify-between gap-2 sm:gap-4">
@@ -320,12 +355,67 @@ export function Modal({
 						size="sm"
 						aria-label="Cerrar ventana"
 						onClick={onClose}
+						disabled={!isPresent}
 					>
 						<XCircle aria-hidden="true" className="h-5 w-5" />
 					</Button>
 				</div>
 				<div className="mt-3">{children}</div>
 			</div>
-		</dialog>
+		</motion.dialog>
+	);
+}
+
+export function ActionConfirmation({
+	open,
+	onClose,
+	onAfterClose,
+	title,
+	children,
+	label,
+	variant = "primary",
+	onConfirm,
+}: ModalProps & {
+	label: string;
+	variant?: ButtonProps["variant"];
+	onConfirm: () => Promise<void>;
+}) {
+	const [pending, setPending] = useState(false);
+
+	const confirm = async () => {
+		setPending(true);
+		try {
+			await onConfirm();
+			onClose();
+		} finally {
+			setPending(false);
+		}
+	};
+
+	const close = () => {
+		if (!pending) onClose();
+	};
+	return (
+		<Modal
+			open={open}
+			title={title}
+			onClose={close}
+			onAfterClose={onAfterClose}
+		>
+			<p className="text-sm text-[var(--text-muted)]">{children}</p>
+			<ModalActions>
+				<Button variant="ghost" onClick={close} disabled={pending}>
+					Cancelar
+				</Button>
+				<Button
+					variant={variant}
+					onClick={confirm}
+					disabled={pending}
+					aria-busy={pending}
+				>
+					{pending ? "Procesando…" : label}
+				</Button>
+			</ModalActions>
+		</Modal>
 	);
 }

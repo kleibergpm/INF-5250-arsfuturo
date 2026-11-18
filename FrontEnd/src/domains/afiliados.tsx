@@ -1,3 +1,4 @@
+import { AnimatePresence } from "framer-motion";
 import { CheckCircle2, Plus, User } from "lucide-react";
 import { useState } from "react";
 import type { Afiliado, Plan, Proveedor } from "../api/adapters";
@@ -44,26 +45,30 @@ export function AfiliadoActions({
 			>
 				<User className="w-4 h-4 mr-1" /> Editar
 			</Button>
-			{open && (
-				<NuevaAutorizacionModal
-					open={open}
-					onClose={() => setOpen(false)}
-					afiliadoDefault={afiliado}
-					afiliados={afiliados}
-					proveedores={proveedores}
-					crearAutorizacion={crearAutorizacion}
-					addNotification={addNotification}
-				/>
-			)}
-			{openEdit && (
-				<EditarAfiliadoModal
-					open={openEdit}
-					onClose={() => setOpenEdit(false)}
-					afiliado={afiliado}
-					onGuardar={onEditarAfiliado}
-					addNotification={addNotification}
-				/>
-			)}
+			<AnimatePresence>
+				{open && (
+					<NuevaAutorizacionModal
+						open={open}
+						onClose={() => setOpen(false)}
+						afiliadoDefault={afiliado}
+						afiliados={afiliados}
+						proveedores={proveedores}
+						crearAutorizacion={crearAutorizacion}
+						addNotification={addNotification}
+					/>
+				)}
+			</AnimatePresence>
+			<AnimatePresence>
+				{openEdit && (
+					<EditarAfiliadoModal
+						open={openEdit}
+						onClose={() => setOpenEdit(false)}
+						afiliado={afiliado}
+						onGuardar={onEditarAfiliado}
+						addNotification={addNotification}
+					/>
+				)}
+			</AnimatePresence>
 		</div>
 	);
 }

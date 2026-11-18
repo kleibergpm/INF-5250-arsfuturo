@@ -288,3 +288,34 @@ body,
 #root {
 	height: 100%;
 }
+
+.app-modal button:not(:disabled):hover {
+	filter: brightness(1.08);
+	box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.app-modal[data-reduced-motion="false"]::backdrop {
+	animation: modal-backdrop 180ms ease-out both;
+}
+
+.app-modal[data-reduced-motion="false"][data-exiting="true"]::backdrop {
+	animation: modal-backdrop-out 180ms ease-out both;
+}
+
+@keyframes modal-backdrop {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes modal-backdrop-out {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}

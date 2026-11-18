@@ -1,8 +1,9 @@
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { CheckCircle2, FileDown, Plus, Search, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Afiliado, Autorizacion, Proveedor } from "../api/adapters";
 import {
+	ActionConfirmation,
 	Badge,
 	Button,
 	Card,
@@ -35,6 +36,11 @@ export function AutorizacionesTab({
 	const [estado, setEstado] = useState("Todos");
 	const [q, setQ] = useState("");
 	const [open, setOpen] = useState(false);
+	const [decision, setDecision] = useState<{
+		autorizacion: Autorizacion;
+		accion: "aprobar" | "rechazar";
+	} | null>(null);
+	const rechazar = decision?.accion === "rechazar";
 
 	const data = useMemo(() => {
 		return autorizaciones
@@ -161,7 +167,9 @@ export function AutorizacionesTab({
 													size="sm"
 													variant="success"
 													className="flex items-center justify-center w-full sm:w-auto text-xs"
-													onClick={() => aprobarAut(a.id)}
+													onClick={() =>
+														setDecision({ autorizacion: a, accion: "aprobar" })
+													}
 												>
 													<CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
 													Aprobar
@@ -170,7 +178,9 @@ export function AutorizacionesTab({
 													size="sm"
 													variant="danger"
 													className="flex items-center justify-center w-full sm:w-auto text-xs"
-													onClick={() => rechazarAut(a.id)}
+													onClick={() =>
+														setDecision({ autorizacion: a, accion: "rechazar" })
+													}
 												>
 													<XCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
 													Rechazar
@@ -185,16 +195,35 @@ export function AutorizacionesTab({
 				</div>
 			</Card>
 
-			{open && (
-				<NuevaAutorizacionModal
-					open={open}
-					onClose={() => setOpen(false)}
-					afiliados={afiliados}
-					proveedores={proveedores}
-					crearAutorizacion={crearAutorizacion}
-					addNotification={addNotification}
-				/>
-			)}
+			<ActionConfirmation
+				open={decision !== null}
+				onClose={() => setDecision(null)}
+				title={rechazar ? "Rechazar autorización" : "Aprobar autorización"}
+				label={rechazar ? "Rechazar" : "Aprobar"}
+				variant={rechazar ? "danger" : "success"}
+				onConfirm={async () => {
+					if (decision)
+						await (rechazar ? rechazarAut : aprobarAut)(
+							decision.autorizacion.id,
+						);
+				}}
+			>
+				¿Confirmas que quieres {decision?.accion} la autorización para «
+				{decision?.autorizacion.procedimiento}»?
+			</ActionConfirmation>
+
+			<AnimatePresence>
+				{open && (
+					<NuevaAutorizacionModal
+						open={open}
+						onClose={() => setOpen(false)}
+						afiliados={afiliados}
+						proveedores={proveedores}
+						crearAutorizacion={crearAutorizacion}
+						addNotification={addNotification}
+					/>
+				)}
+			</AnimatePresence>
 		</motion.div>
 	);
 }
