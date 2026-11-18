@@ -10,14 +10,14 @@ export const formatDate = (value: string | Date | null | undefined) =>
 			)
 		: "-";
 
+const csvCell = (value: unknown) =>
+	`"${String(value ?? "")
+		.normalize("NFD")
+		.replace(/\p{M}/gu, "")
+		.replace(/"/g, '""')}"`;
+
 export function exportCsv(filename: string, rows: unknown[][]) {
-	const csv = rows
-		.map((row) =>
-			row
-				.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
-				.join(","),
-		)
-		.join("\r\n");
+	const csv = rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
 	// Excel uses this directive to open columns regardless of the system delimiter.
 	const blob = new Blob([`\uFEFFsep=,\r\n${csv}`], {
 		type: "text/csv;charset=utf-8;",
