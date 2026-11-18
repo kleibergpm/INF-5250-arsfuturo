@@ -14,9 +14,6 @@
 		"check": "biome check src tests prisma",
 		"check:fix": "biome check --write src tests prisma"
 	},
-	"prisma": {
-		"seed": "tsx prisma/seed.ts"
-	},
 	"dependencies": {
 		"@prisma/adapter-pg": "^7.10.0",
 		"@prisma/client": "7.10.0",

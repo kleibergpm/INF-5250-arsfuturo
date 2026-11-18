@@ -159,8 +159,8 @@ Antes de conectar un proveedor real, conviene implementar un proveedor mock y pr
 
 ## Documentación relacionada
 
-- [README general](README.md)
-- [Guía del backend](backend/README.md)
-- [Guía del FrontEnd](FrontEnd/README.md)
-- [Guía de agentes](AGENTS.md)
-- [Diagramas UML](docs/DIAGRAMAS_UML.md)
+- [README general](../README.md)
+- [Guía del backend](../backend/README.md)
+- [Guía del FrontEnd](../FrontEnd/README.md)
+- [Guía de agentes](../AGENTS.md)
+- [Diagramas UML](DIAGRAMAS_UML.md)

@@ -26,8 +26,7 @@ Estas convenciones aplican a todo ARS Futuro. Las guías `AGENTS.md` de cada dir
 
 - Usa Biome como formateador y linter.
 - Conserva tabulaciones, comillas dobles y organización automática de imports.
-- Backend: `pnpm exec biome check src tests prisma`.
-- FrontEnd: `pnpm exec biome check src`.
+- Ejecuta `pnpm run check` en el paquete que cambiaste o desde la raíz para revisar ambos.
 - Ejecuta el formatter solo sobre los archivos relacionados con el cambio cuando sea posible.
 - Revisa el diff después de aplicar correcciones automáticas.
 

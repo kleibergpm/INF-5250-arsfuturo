@@ -3,7 +3,7 @@ import { swaggerSpec } from "../src/lib/swagger.js";
 import {
 	CedulaValidationUnavailableError,
 	validateCedula,
-} from "../src/Servicios/cedulaValidation.service.js";
+} from "../src/services/cedula-validation.service.js";
 
 afterEach(() => vi.unstubAllGlobals());
 
