@@ -1,5 +1,9 @@
+import { BusinessRuleError } from "../lib/business-rule-error.js";
 import {
 	type ClaimStatus,
+	type Invoice,
+	type MedicalService,
+	type PaymentStatus,
 	type PolicyStatus,
 	Prisma,
 } from "../lib/generated/client/index.js";
@@ -10,6 +14,28 @@ import {
 } from "../services/notifications.service.js";
 
 const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
+const payableAmount = (service: Pick<MedicalService, "cost" | "copay">) =>
+	Prisma.Decimal.max(0, service.cost.minus(service.copay));
+
+function serviceResponse<
+	T extends MedicalService & { payment: { status: PaymentStatus } | null },
+>({ payment, ...service }: T) {
+	const amount = payableAmount(service);
+	return {
+		...service,
+		paymentStatus: payment?.status ?? null,
+		paymentEligible:
+			service.status === "PENDING_PAYMENT" && !payment && amount.gt(0),
+		payableAmount: amount.toFixed(2),
+	};
+}
+
+function invoiceResponse<T extends Invoice>(invoice: T, now: Date): T {
+	return invoice.status === "PENDING" &&
+		dateOnly(invoice.dueDate) < dateOnly(now)
+		? { ...invoice, status: "OVERDUE" }
+		: invoice;
+}
 export const policyDatesInOrder = ({
 	startDate,
 	endDate,
@@ -230,95 +256,174 @@ export class BusinessController {
 			!insured ||
 			!provider ||
 			insured.status !== "ACTIVE" ||
-			(authorizationId && authorization?.status !== "APPROVED")
+			(authorizationId &&
+				(authorization?.status !== "APPROVED" ||
+					authorization.insuredId !== insuredId ||
+					authorization.providerId !== providerId))
 		) {
 			return res.status(422).json({
 				error: "VALIDATION_ERROR",
 				message: "Servicio no elegible o autorización no aprobada",
 			});
 		}
-		res.status(201).json(
-			await this.database.medicalService.create({
-				data: { ...req.body, copay: insured.plan.consultationCopay },
-			}),
-		);
+		const service = await this.database.medicalService.create({
+			data: { ...req.body, copay: insured.plan.consultationCopay },
+		});
+		res.status(201).json(serviceResponse({ ...service, payment: null }));
+	};
+
+	listServices = async (_req, res) => {
+		const services = await this.database.medicalService.findMany({
+			include: {
+				insured: true,
+				provider: true,
+				authorization: true,
+				payment: { select: { status: true } },
+			},
+			orderBy: { createdAt: "desc" },
+		});
+		res.json(services.map(serviceResponse));
 	};
 
 	issuePayment = async (req, res) => {
 		const { serviceId, amount, bankReference, method } = req.body;
 		const result = await this.database.$transaction(async (transaction) => {
-			const service = await transaction.medicalService.findUnique({
-				where: { id: serviceId },
+			// The conditional write serializes attempts for one service and rolls back on failure.
+			const updated = await transaction.medicalService.updateMany({
+				where: { id: serviceId, status: "PENDING_PAYMENT" },
+				data: { status: "PAID" },
 			});
-			if (!service || service.status === "PAID") {
-				const error = Object.assign(
-					new Error("Servicio inexistente o ya pagado"),
-					{ status: 422 },
+			const service = await transaction.medicalService.findUniqueOrThrow({
+				where: { id: serviceId },
+				include: { payment: true },
+			});
+			const previous = service.payment;
+			if (previous?.status === "REJECTED") {
+				throw new BusinessRuleError(
+					409,
+					"El pago rechazado requiere revisión antes de volver a emitirlo",
 				);
-				throw error;
+			}
+			if (
+				!updated.count &&
+				previous?.status === "PROCESSED" &&
+				previous.bankReference === bankReference &&
+				previous.method === method &&
+				previous.amount.eq(amount)
+			) {
+				return { payment: previous, created: false };
+			}
+			if (!updated.count || previous) {
+				throw new BusinessRuleError(
+					409,
+					"El servicio ya tiene un pago registrado",
+				);
+			}
+			const expected = payableAmount(service);
+			if (!expected.gt(0) || !expected.eq(amount)) {
+				throw new BusinessRuleError(
+					422,
+					"El importe debe coincidir con el costo menos el copago y ser positivo",
+				);
 			}
 			const payment = await transaction.providerPayment.create({
 				data: {
 					serviceId,
 					providerId: service.providerId,
-					amount,
+					amount: expected,
 					bankReference,
 					method,
 				},
 			});
-			await transaction.medicalService.update({
-				where: { id: serviceId },
-				data: { status: "PAID" },
-			});
-			return payment;
+			await this.notifications.create(
+				{
+					type: "success",
+					title: "Pago procesado",
+					message: `Pago ${payment.id} registrado.`,
+				},
+				transaction,
+			);
+			return { payment, created: true };
 		});
-		await this.notifications.create({
-			type: "success",
-			title: "Pago procesado",
-			message: `Pago ${result.id} registrado.`,
-		});
-		res.status(201).json(result);
+		res.status(result.created ? 201 : 200).json(result.payment);
 	};
 
 	generateInvoices = async (req, res) => {
-		const period = req.body.period || this.today().toISOString().slice(0, 7);
-		const existing = await this.database.invoice.count({ where: { period } });
-		if (existing)
-			return res
-				.status(409)
-				.json({ error: "CONFLICT", message: `Ya hay facturas para ${period}` });
-		const policies = await this.database.policy.findMany({
-			where: { status: { in: ["ACTIVE", "IN_GRACE"] } },
-		});
 		const issuedAt = this.today();
-		const dueDate = new Date(issuedAt.getFullYear(), issuedAt.getMonth(), 10);
-		const rows = await this.database.$transaction(
-			policies.map((policy) =>
-				this.database.invoice.create({
-					data: {
-						policyId: policy.id,
-						period,
-						issuedAt,
-						dueDate,
-						amount: policy.monthlyPremium,
-					},
-				}),
-			),
-		);
-		res.status(201).json(rows);
+		const period = req.body.period ?? issuedAt.toISOString().slice(0, 7);
+		const start = new Date(`${period}-01`);
+		const end = new Date(start);
+		end.setUTCMonth(end.getUTCMonth() + 1, 0);
+		const dueDate = new Date(`${period}-10`);
+		const result = await this.database.$transaction(async (transaction) => {
+			const policies = await transaction.policy.findMany({
+				where: {
+					status: { in: ["ACTIVE", "IN_GRACE"] },
+					startDate: { lte: end },
+					endDate: { gte: start },
+				},
+				select: { id: true, monthlyPremium: true },
+				orderBy: { id: "asc" },
+			});
+			const status =
+				dateOnly(dueDate) < dateOnly(issuedAt) ? "OVERDUE" : "PENDING";
+			const created = policies.length
+				? await transaction.invoice.createMany({
+						skipDuplicates: true,
+						data: policies.map((policy) => ({
+							policyId: policy.id,
+							period,
+							issuedAt,
+							dueDate,
+							amount: policy.monthlyPremium,
+							status,
+						})),
+					})
+				: { count: 0 };
+			const invoices = await transaction.invoice.findMany({
+				where: { period },
+				orderBy: { policyId: "asc" },
+			});
+			return { invoices, created: created.count };
+		});
+		res
+			.status(result.created ? 201 : 200)
+			.json(
+				result.invoices.map((invoice) => invoiceResponse(invoice, issuedAt)),
+			);
+	};
+
+	listInvoices = async (_req, res) => {
+		const now = this.today();
+		const invoices = await this.database.invoice.findMany({
+			include: { policy: true },
+			orderBy: { createdAt: "desc" },
+		});
+		res.json(invoices.map((invoice) => invoiceResponse(invoice, now)));
 	};
 
 	payInvoice = async (req, res) => {
 		const paidAt = this.today();
+		const id = req.params.id;
 		const invoice = await this.database.$transaction(async (transaction) => {
-			const invoiceRow = await transaction.invoice.update({
-				where: { id: req.params.id },
+			const updated = await transaction.invoice.updateMany({
+				where: { id, status: { not: "PAID" } },
 				data: {
 					status: "PAID",
 					paidAt,
 					reference: req.body.reference,
 				},
 			});
+			const invoiceRow = await transaction.invoice.findUniqueOrThrow({
+				where: { id },
+			});
+			if (!updated.count) {
+				if (invoiceRow.reference === req.body.reference) return invoiceRow;
+				throw new BusinessRuleError(
+					409,
+					"La factura ya fue pagada con otra referencia",
+				);
+			}
 			await this.setPolicyFromInvoice(
 				transaction,
 				invoiceRow.policyId,
@@ -331,52 +436,76 @@ export class BusinessController {
 	};
 
 	remindInvoice = async (req, res) => {
-		const invoice = await this.database.invoice.findUnique({
-			where: { id: req.params.id },
+		const id = req.params.id;
+		const now = this.today();
+		const invoice = await this.database.$transaction(async (transaction) => {
+			const updated = await transaction.invoice.updateMany({
+				where: { id, status: { not: "PAID" } },
+				data: { reminderSent: true },
+			});
+			if (!updated.count) {
+				await transaction.invoice.findUniqueOrThrow({ where: { id } });
+				throw new BusinessRuleError(409, "La factura ya fue pagada");
+			}
+			await transaction.invoice.updateMany({
+				where: {
+					id,
+					status: "PENDING",
+					dueDate: { lt: new Date(dateOnly(now)) },
+				},
+				data: { status: "OVERDUE" },
+			});
+			return transaction.invoice.findUniqueOrThrow({ where: { id } });
 		});
-		if (!invoice)
-			return res
-				.status(404)
-				.json({ error: "NOT_FOUND", message: "Factura no encontrada" });
-		if (invoice.status === "PAID")
-			return res
-				.status(409)
-				.json({ error: "CONFLICT", message: "La factura ya fue pagada" });
-		res.json(
-			await this.database.invoice.update({
-				where: { id: req.params.id },
-				data: { reminderSent: true, status: "OVERDUE" },
-			}),
-		);
+		res.json(invoiceResponse(invoice, now));
 	};
 
 	graceInvoice = async (req, res) => {
-		const invoice = await this.database.$transaction(async (transaction) => {
-			const row = await transaction.invoice.update({
-				where: { id: req.params.id },
-				data: { status: "IN_GRACE" },
-			});
-			await this.setPolicyFromInvoice(transaction, row.policyId, "IN_GRACE");
-			return row;
-		});
-		res.json(invoice);
+		res.json(
+			await this.changeOverdueInvoice(req.params.id, "IN_GRACE", "IN_GRACE"),
+		);
 	};
 
 	suspendInvoice = async (req, res) => {
-		const invoice = await this.database.invoice.findUnique({
-			where: { id: req.params.id },
-		});
-		if (!invoice)
-			return res
-				.status(404)
-				.json({ error: "NOT_FOUND", message: "Factura no encontrada" });
-		await this.setPolicyFromInvoice(
-			this.database,
-			invoice.policyId,
-			"SUSPENDED",
-		);
+		await this.changeOverdueInvoice(req.params.id, "OVERDUE", "SUSPENDED");
 		res.status(204).end();
 	};
+
+	private changeOverdueInvoice(
+		id: string,
+		status: "IN_GRACE" | "OVERDUE",
+		policyStatus: "IN_GRACE" | "SUSPENDED",
+	) {
+		const now = this.today();
+		return this.database.$transaction(async (transaction) => {
+			const updated = await transaction.invoice.updateMany({
+				where: {
+					id,
+					status: { not: "PAID" },
+					dueDate: { lt: new Date(dateOnly(now)) },
+				},
+				data: { status },
+			});
+			const invoice = await transaction.invoice.findUniqueOrThrow({
+				where: { id },
+			});
+			if (!updated.count) {
+				throw new BusinessRuleError(
+					409,
+					invoice.status === "PAID"
+						? "La factura ya fue pagada"
+						: "La factura aún no está vencida",
+				);
+			}
+			await this.setPolicyFromInvoice(
+				transaction,
+				invoice.policyId,
+				policyStatus,
+				now,
+			);
+			return invoice;
+		});
+	}
 
 	private setPolicyFromInvoice(
 		database: Pick<Prisma.TransactionClient, "policy">,

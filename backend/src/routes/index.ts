@@ -82,9 +82,9 @@ const schemas = {
 	}),
 	payment: z.object({
 		serviceId: z.string().uuid(),
-		amount: z.coerce.number().positive(),
-		bankReference: z.string().min(3),
-		method: z.string().min(3),
+		amount: z.coerce.number().positive().max(999_999_999_999.99),
+		bankReference: z.string().trim().min(3),
+		method: z.string().trim().min(3),
 	}),
 };
 r.post("/auth/login", validate(authBody), asyncHandler(authController.login));
@@ -289,13 +289,7 @@ r.get(
 	"/servicios",
 	authenticate,
 	allow(...roles.staff),
-	asyncHandler(
-		crud("medicalService", {
-			insured: true,
-			provider: true,
-			authorization: true,
-		}).list,
-	),
+	asyncHandler(businessController.listServices),
 );
 r.post(
 	"/servicios",
@@ -321,7 +315,7 @@ r.get(
 	"/facturas",
 	authenticate,
 	allow(...roles.admin),
-	asyncHandler(crud("invoice", { policy: true }).list),
+	asyncHandler(businessController.listInvoices),
 );
 r.post(
 	"/facturas/generar",
@@ -331,7 +325,7 @@ r.post(
 		z.object({
 			period: z
 				.string()
-				.regex(/^\d{4}-\d{2}$/)
+				.regex(/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/)
 				.optional(),
 		}),
 	),
@@ -341,25 +335,29 @@ r.patch(
 	"/facturas/:id/pagar",
 	authenticate,
 	allow(...roles.admin),
-	validate(z.object({ reference: z.string().min(3) })),
+	validate(uuid, "params"),
+	validate(z.object({ reference: z.string().trim().min(3) })),
 	asyncHandler(businessController.payInvoice),
 );
 r.patch(
 	"/facturas/:id/recordatorio",
 	authenticate,
 	allow(...roles.admin),
+	validate(uuid, "params"),
 	asyncHandler(businessController.remindInvoice),
 );
 r.patch(
 	"/facturas/:id/gracia",
 	authenticate,
 	allow(...roles.admin),
+	validate(uuid, "params"),
 	asyncHandler(businessController.graceInvoice),
 );
 r.patch(
 	"/facturas/:id/suspender",
 	authenticate,
 	allow(...roles.admin),
+	validate(uuid, "params"),
 	asyncHandler(businessController.suspendInvoice),
 );
 r.get(

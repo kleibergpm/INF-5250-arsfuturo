@@ -478,10 +478,17 @@ export default function ARS_Futuro_App() {
 				toPaymentPayload({ servicioId, monto, referenciaBanco, metodo }),
 			),
 		);
-		setPagos((prev) => [nuevo, ...prev]);
+		setPagos((prev) => [nuevo, ...prev.filter((p) => p.id !== nuevo.id)]);
 		setServicios((prev) =>
 			prev.map((s) =>
-				String(s.id) === String(servicioId) ? { ...s, estado: "Pagado" } : s,
+				s.id === nuevo.servicioId
+					? {
+							...s,
+							estado: "Pagado",
+							estadoPago: nuevo.estado,
+							elegiblePago: false,
+						}
+					: s,
 			),
 		);
 		return nuevo;
@@ -536,28 +543,19 @@ export default function ARS_Futuro_App() {
 
 	// Facturación de pólizas (Pago de Prima Mensual)
 	const generarFacturasMes = async () => {
-		const periodo = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
-		const yaExisten = facturas.some((f) => f.periodo === periodo);
-		if (yaExisten) {
-			addNotification({
-				id: Date.now(),
-				type: "info",
-				title: "Facturación",
-				message: `Las facturas del periodo ${periodo} ya existen.`,
-			});
-			return [];
-		}
-		const nuevas = (await mutationsApi.generarFacturas(periodo)).map(
-			adaptFactura,
-		);
-		setFacturas((prev) => [...nuevas, ...prev]);
+		const delPeriodo = (await mutationsApi.generarFacturas()).map(adaptFactura);
+		const ids = new Set(delPeriodo.map((f) => f.id));
+		setFacturas((prev) => [
+			...delPeriodo,
+			...prev.filter((f) => !ids.has(f.id)),
+		]);
 		addNotification({
-			id: Date.now(),
-			type: "success",
-			title: "Facturas generadas",
-			message: `Se generaron facturas del periodo ${periodo} para ${nuevas.length} pólizas.`,
+			type: "info",
+			title: "Facturación del mes",
+			message: delPeriodo.length
+				? `${delPeriodo.length} facturas para ${delPeriodo[0].periodo}.`
+				: "No hay pólizas elegibles para el período.",
 		});
-		return nuevas;
 	};
 
 	const enviarRecordatorioFactura = async (id) => {
@@ -566,8 +564,8 @@ export default function ARS_Futuro_App() {
 		addNotification({
 			id: Date.now(),
 			type: "info",
-			title: "Recordatorio enviado",
-			message: "Se envió recordatorio de pago al asegurado.",
+			title: "Recordatorio registrado",
+			message: "Se actualizó el indicador de recordatorio de la factura.",
 		});
 	};
 
@@ -632,7 +630,11 @@ export default function ARS_Futuro_App() {
 		const factura = facturas.find((f) => f.id === facturaId);
 		if (!factura) return;
 		await mutationsApi.suspenderFactura(facturaId);
-		const poliza = await refrescarPoliza(factura.polizaId);
+		const [poliza, actuales] = await Promise.all([
+			refrescarPoliza(factura.polizaId),
+			resourcesApi.facturas(),
+		]);
+		setFacturas(adaptCollection(actuales, adaptFactura));
 		if (poliza) {
 			addNotification({
 				type: "info",
@@ -1280,6 +1282,7 @@ export default function ARS_Futuro_App() {
 								onRegistrarPago={registrarPagoPrima}
 								onGracia={marcarPeriodoGracia}
 								onSuspender={suspenderPolizaPorFactura}
+								addNotification={addNotification}
 							/>
 						)}
 					</AnimatePresence>
@@ -2610,6 +2613,9 @@ function ServiciosTab({
 											<Badge color={s.estado === "Pagado" ? "green" : "amber"}>
 												{s.estado}
 											</Badge>
+											{s.estadoPago === "Rechazado" && (
+												<span className="ml-2">Pago rechazado</span>
+											)}
 										</td>
 									</tr>
 								);
@@ -2619,15 +2625,17 @@ function ServiciosTab({
 				</div>
 			</Card>
 
-			<RegistrarServicioModal
-				open={open}
-				onClose={() => setOpen(false)}
-				afiliados={afiliados}
-				proveedores={proveedores}
-				autorizaciones={autorizaciones}
-				onRegistrar={onRegistrar}
-				addNotification={addNotification}
-			/>
+			{open && (
+				<RegistrarServicioModal
+					open={open}
+					onClose={() => setOpen(false)}
+					afiliados={afiliados}
+					proveedores={proveedores}
+					autorizaciones={autorizaciones}
+					onRegistrar={onRegistrar}
+					addNotification={addNotification}
+				/>
+			)}
 		</motion.div>
 	);
 }
@@ -2650,30 +2658,43 @@ function RegistrarServicioModal({
 	const [descripcion, setDescripcion] = useState("Consulta general");
 	const [costo, setCosto] = useState("1000");
 	const [autorizacionId, setAutorizacionId] = useState("");
+	const [registrando, setRegistrando] = useState(false);
 
 	const autorizDelAfiliado = useMemo(() => {
 		return autorizaciones.filter(
-			(a) => String(a.afiliadoId) === afiliadoId && a.estado === "Aprobada",
+			(a) =>
+				String(a.afiliadoId) === afiliadoId &&
+				String(a.proveedorId) === proveedorId &&
+				a.estado === "Aprobada",
 		);
-	}, [autorizaciones, afiliadoId]);
+	}, [autorizaciones, afiliadoId, proveedorId]);
 
 	const registrar = async () => {
-		const nuevo = await onRegistrar({
-			afiliadoId,
-			proveedorId,
-			descripcion,
-			costo,
-			autorizacionId: autorizacionId || undefined,
-		});
-		if (!nuevo) return;
-		addNotification({
-			id: Date.now(),
-			type: "success",
-			title: "Servicio registrado",
-			message: `Se registró servicio para afiliado ${afiliados.find((a) => String(a.id) === afiliadoId)?.nombre}.`,
-		});
-		onClose();
-		return nuevo;
+		setRegistrando(true);
+		try {
+			const nuevo = await onRegistrar({
+				afiliadoId,
+				proveedorId,
+				descripcion,
+				costo,
+				autorizacionId: autorizacionId || undefined,
+			});
+			if (!nuevo) return;
+			addNotification({
+				type: "success",
+				title: "Servicio registrado",
+				message: `Se registró servicio para afiliado ${afiliados.find((a) => String(a.id) === afiliadoId)?.nombre}.`,
+			});
+			onClose();
+		} catch (error) {
+			addNotification({
+				type: "error",
+				title: "No se pudo registrar el servicio",
+				message: error.response?.data?.message || "Intenta de nuevo.",
+			});
+		} finally {
+			setRegistrando(false);
+		}
 	};
 
 	return (
@@ -2689,7 +2710,10 @@ function RegistrarServicioModal({
 					<Select
 						id="registrar-servicio-medico-afiliado"
 						value={afiliadoId}
-						onChange={setAfiliadoId}
+						onChange={(id) => {
+							setAfiliadoId(id);
+							setAutorizacionId("");
+						}}
 					>
 						{afiliados.map((a) => (
 							<option key={a.id} value={String(a.id)}>
@@ -2708,7 +2732,10 @@ function RegistrarServicioModal({
 					<Select
 						id="registrar-servicio-medico-proveedor"
 						value={proveedorId}
-						onChange={setProveedorId}
+						onChange={(id) => {
+							setProveedorId(id);
+							setAutorizacionId("");
+						}}
 					>
 						{proveedores.map((p) => (
 							<option key={p.id} value={String(p.id)}>
@@ -2771,7 +2798,13 @@ function RegistrarServicioModal({
 				<Button variant="ghost" onClick={onClose}>
 					Cancelar
 				</Button>
-				<Button variant="primary" onClick={registrar}>
+				<Button
+					variant="primary"
+					onClick={registrar}
+					disabled={
+						registrando || !afiliadoId || !proveedorId || !(Number(costo) > 0)
+					}
+				>
 					Registrar
 				</Button>
 			</div>
@@ -2908,14 +2941,16 @@ function PagosTab({
 				</div>
 			</Card>
 
-			<EmitirPagoModal
-				open={open}
-				onClose={() => setOpen(false)}
-				servicios={servicios}
-				proveedores={proveedores}
-				onEmitirPago={onEmitirPago}
-				addNotification={addNotification}
-			/>
+			{open && (
+				<EmitirPagoModal
+					open={open}
+					onClose={() => setOpen(false)}
+					servicios={servicios}
+					proveedores={proveedores}
+					onEmitirPago={onEmitirPago}
+					addNotification={addNotification}
+				/>
+			)}
 		</motion.div>
 	);
 }
@@ -2928,7 +2963,7 @@ function EmitirPagoModal({
 	onEmitirPago,
 	addNotification,
 }) {
-	const pendientes = servicios.filter((s) => s.estado === "Pendiente de Pago");
+	const pendientes = servicios.filter((s) => s.elegiblePago);
 	const [servicioId, setServicioId] = useState(
 		pendientes[0]?.id ? String(pendientes[0].id) : "",
 	);
@@ -2936,29 +2971,27 @@ function EmitirPagoModal({
 	const proveedorSel = proveedores.find(
 		(p) => p.id === servicioSel?.proveedorId,
 	);
-	const monto = servicioSel
-		? Math.max(0, (servicioSel.costo || 0) - (servicioSel.copago || 0))
-		: 0;
+	const monto = servicioSel?.montoPagable ?? 0;
 	const [referenciaBanco, setReferenciaBanco] = useState("");
 	const [metodo, setMetodo] = useState("Transferencia");
+	const [emitiendo, setEmitiendo] = useState(false);
 
 	useEffect(() => {
-		const s = pendientes.find((x) => String(x.id) === servicioId);
 		setReferenciaBanco(
-			s
-				? `ORD-${new Date().getFullYear()}-${String(s.id).padStart(4, "0")}`
-				: "",
+			servicioId ? `ORD-${new Date().getFullYear()}-${servicioId}` : "",
 		);
-	}, [servicioId, pendientes]);
+	}, [servicioId]);
 
 	const emitir = async () => {
-		const pago = await onEmitirPago({
-			servicioId,
-			monto,
-			referenciaBanco,
-			metodo,
-		});
-		if (pago) {
+		setEmitiendo(true);
+		try {
+			const pago = await onEmitirPago({
+				servicioId,
+				monto,
+				referenciaBanco,
+				metodo,
+			});
+			if (!pago) return;
 			addNotification({
 				id: Date.now(),
 				type: "success",
@@ -2966,6 +2999,14 @@ function EmitirPagoModal({
 				message: `Se emitió pago a ${proveedorSel?.nombre} por ${currency(monto)}.`,
 			});
 			onClose();
+		} catch (error) {
+			addNotification({
+				type: "error",
+				title: "No se pudo emitir el pago",
+				message: error.response?.data?.message || "Intenta de nuevo.",
+			});
+		} finally {
+			setEmitiendo(false);
 		}
 	};
 
@@ -2991,6 +3032,9 @@ function EmitirPagoModal({
 							>{`${s.id} - ${s.descripcion} (${formatDate(s.fecha)})`}</option>
 						))}
 					</Select>
+					{!pendientes.length && (
+						<p role="status">No hay servicios elegibles para pago.</p>
+					)}
 				</div>
 				<div>
 					<label
@@ -3059,7 +3103,9 @@ function EmitirPagoModal({
 				<Button
 					variant="primary"
 					onClick={emitir}
-					disabled={!servicioId || !referenciaBanco}
+					disabled={
+						emitiendo || !servicioSel || referenciaBanco.trim().length < 3
+					}
 				>
 					Emitir pago
 				</Button>
@@ -3076,11 +3122,32 @@ function FacturacionTab({
 	onRegistrarPago,
 	onGracia,
 	onSuspender,
+	addNotification,
 }) {
 	const [filtroPeriodo, setFiltroPeriodo] = useState("todos");
 	const [filtroEstado, setFiltroEstado] = useState("todos");
 	const [openPago, setOpenPago] = useState(false);
 	const [facturaSel, setFacturaSel] = useState(null);
+	const [procesando, setProcesando] = useState(false);
+
+	const ejecutar = async (operacion: () => Promise<unknown>) => {
+		setProcesando(true);
+		try {
+			await operacion();
+			return true;
+		} catch (error) {
+			addNotification({
+				type: "error",
+				title: "No se pudo confirmar la operación",
+				message:
+					error.response?.data?.message ||
+					"Vuelve a consultar la factura antes de reintentar.",
+			});
+			return false;
+		} finally {
+			setProcesando(false);
+		}
+	};
 
 	const periodos = useMemo(
 		() => Array.from(new Set<string>(facturas.map((f) => f.periodo))),
@@ -3171,7 +3238,8 @@ function FacturacionTab({
 					</Button>
 					<Button
 						variant="primary"
-						onClick={onGenerarMes}
+						onClick={() => ejecutar(onGenerarMes)}
+						disabled={procesando}
 						className="flex items-center"
 					>
 						<RefreshCw className="w-4 h-4 mr-1" /> Generar facturas del mes
@@ -3238,25 +3306,29 @@ function FacturacionTab({
 													<Button
 														variant="ghost"
 														size="sm"
-														onClick={() => onRecordatorio(f.id)}
+														onClick={() => ejecutar(() => onRecordatorio(f.id))}
+														disabled={procesando}
 													>
 														Recordatorio
 													</Button>
 												)}
-												{f.estado !== "Pagada" && (
+												{f.estado === "Atrasada" && (
 													<Button
 														variant="warning"
 														size="sm"
-														onClick={() => onGracia(f.id)}
+														onClick={() => ejecutar(() => onGracia(f.id))}
+														disabled={procesando}
 													>
 														Periodo de gracia
 													</Button>
 												)}
-												{f.estado !== "Pagada" && (
+												{(f.estado === "Atrasada" ||
+													f.estado === "En gracia") && (
 													<Button
 														variant="danger"
 														size="sm"
-														onClick={() => onSuspender(f.id)}
+														onClick={() => ejecutar(() => onSuspender(f.id))}
+														disabled={procesando}
 													>
 														Suspender póliza
 													</Button>
@@ -3271,22 +3343,30 @@ function FacturacionTab({
 				</div>
 			</Card>
 
-			<RegistrarPagoPrimaModal
-				open={openPago}
-				onClose={() => setOpenPago(false)}
-				factura={facturaSel}
-				onRegistrarPago={onRegistrarPago}
-			/>
+			{openPago && (
+				<RegistrarPagoPrimaModal
+					open={openPago}
+					onClose={() => setOpenPago(false)}
+					factura={facturaSel}
+					onRegistrarPago={(input) => ejecutar(() => onRegistrarPago(input))}
+					procesando={procesando}
+				/>
+			)}
 		</motion.div>
 	);
 }
 
-function RegistrarPagoPrimaModal({ open, onClose, factura, onRegistrarPago }) {
+function RegistrarPagoPrimaModal({
+	open,
+	onClose,
+	factura,
+	onRegistrarPago,
+	procesando,
+}) {
 	const [referencia, setReferencia] = useState("");
 	if (!factura) return null;
 	const submit = async () => {
-		await onRegistrarPago({ facturaId: factura.id, referencia });
-		onClose();
+		if (await onRegistrarPago({ facturaId: factura.id, referencia })) onClose();
 	};
 	return (
 		<Modal
@@ -3343,7 +3423,11 @@ function RegistrarPagoPrimaModal({ open, onClose, factura, onRegistrarPago }) {
 				<Button variant="ghost" onClick={onClose}>
 					Cancelar
 				</Button>
-				<Button variant="primary" onClick={submit} disabled={!referencia}>
+				<Button
+					variant="primary"
+					onClick={submit}
+					disabled={procesando || referencia.trim().length < 3}
+				>
 					Registrar pago
 				</Button>
 			</div>

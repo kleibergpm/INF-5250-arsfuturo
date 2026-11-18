@@ -155,6 +155,11 @@ export const adaptServicio = (item: ApiRecord): AdaptedRecord => ({
 	copago: money(item.copay),
 	fecha: item.date,
 	estado: displayServiceStatus(item.status),
+	elegiblePago: item.paymentEligible === true,
+	montoPagable: money(item.payableAmount),
+	estadoPago: item.paymentStatus
+		? displayPaymentStatus(item.paymentStatus)
+		: null,
 });
 
 export const adaptPago = (item: ApiRecord): AdaptedRecord => ({
