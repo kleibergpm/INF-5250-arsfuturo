@@ -14,7 +14,12 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
 	(response) => response,
 	(error) => {
-		if (error.response?.status === 401)
+		const token = localStorage.getItem("arsfuturo_token");
+		if (
+			error.response?.status === 401 &&
+			token &&
+			error.config?.headers?.Authorization === `Bearer ${token}`
+		)
 			localStorage.removeItem("arsfuturo_token");
 		return Promise.reject(error);
 	},

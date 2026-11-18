@@ -14,12 +14,12 @@ import {
 	Wallet,
 } from "lucide-react";
 import type { ComponentType } from "react";
+import type { Tema } from "../lib/theme";
 import { Badge, Button, cls } from "./ui";
 
 type UserSummary = { nombre?: string; rol?: string } | null;
 type Icon = ComponentType<{ className?: string }>;
 type NavigationItem = { id: string; label: string; icon: Icon };
-type Tema = "claro" | "oscuro";
 
 type AppHeaderProps = {
 	currentUser: UserSummary;

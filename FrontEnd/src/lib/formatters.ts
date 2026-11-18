@@ -4,7 +4,11 @@ export const currency = (value: number) =>
 	);
 
 export const formatDate = (value: string | Date | null | undefined) =>
-	value ? new Intl.DateTimeFormat("es-DO").format(new Date(value)) : "-";
+	value
+		? new Intl.DateTimeFormat("es-DO", { timeZone: "UTC" }).format(
+				new Date(value),
+			)
+		: "-";
 
 export function exportCsv(filename: string, rows: unknown[][]) {
 	const csv = rows
