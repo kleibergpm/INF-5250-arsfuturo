@@ -105,8 +105,14 @@ type AppNavigationProps = {
 	tab: string;
 	setTab: (tab: string) => void;
 	isAdmin: boolean;
+	isSupervisor: boolean;
 };
-export function AppNavigation({ tab, setTab, isAdmin }: AppNavigationProps) {
+export function AppNavigation({
+	tab,
+	setTab,
+	isAdmin,
+	isSupervisor,
+}: AppNavigationProps) {
 	const items: NavigationItem[] = [
 		{ id: "dashboard", icon: Home, label: "Resumen" },
 		{ id: "afiliados", icon: Users, label: "Afiliados" },
@@ -128,23 +134,25 @@ export function AppNavigation({ tab, setTab, isAdmin }: AppNavigationProps) {
 			className="mb-7 overflow-x-auto pb-1"
 		>
 			<div className="flex min-w-max gap-1 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-veil)] p-1 shadow-sm">
-				{items.map(({ id, icon: Icon, label }) => (
-					<button
-						key={id}
-						type="button"
-						onClick={() => setTab(id)}
-						aria-current={tab === id ? "page" : undefined}
-						className={cls(
-							"flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all",
-							tab === id
-								? "bg-[var(--accent)] text-[var(--accent-ink)] shadow-md shadow-[var(--accent-glow)]"
-								: "text-[var(--text-nav)] hover:bg-[var(--surface-solid)] hover:text-[var(--accent)]",
-						)}
-					>
-						<Icon className="h-4 w-4" />
-						<span>{label}</span>
-					</button>
-				))}
+				{items
+					.filter(({ id }) => !isSupervisor || id === "reclamos")
+					.map(({ id, icon: Icon, label }) => (
+						<button
+							key={id}
+							type="button"
+							onClick={() => setTab(id)}
+							aria-current={tab === id ? "page" : undefined}
+							className={cls(
+								"flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all",
+								tab === id
+									? "bg-[var(--accent)] text-[var(--accent-ink)] shadow-md shadow-[var(--accent-glow)]"
+									: "text-[var(--text-nav)] hover:bg-[var(--surface-solid)] hover:text-[var(--accent)]",
+							)}
+						>
+							<Icon className="h-4 w-4" />
+							<span>{label}</span>
+						</button>
+					))}
 			</div>
 		</nav>
 	);

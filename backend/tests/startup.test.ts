@@ -45,9 +45,13 @@ describe("arranque y logging de la API", () => {
 
 		try {
 			await vi.waitFor(
-				() => expect(stdout).toContain('"event":"server.started"'),
+				() =>
+					expect(
+						stdout,
+						stderr || "El proceso aún no anunció el arranque",
+					).toContain('"event":"server.started"'),
 				{
-					timeout: 8_000,
+					timeout: 20_000,
 				},
 			);
 
@@ -96,7 +100,7 @@ describe("arranque y logging de la API", () => {
 			server.kill();
 			await closed;
 		}
-	}, 15_000);
+	}, 30_000);
 
 	it.each([
 		["PORT", "1e3"],

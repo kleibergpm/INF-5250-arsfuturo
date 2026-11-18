@@ -62,7 +62,11 @@ const crudPaths = (resource: string, schema: Record<string, unknown>) => ({
 		},
 	},
 	[`/api/${resource}/{id}`]: {
-		parameters: [uuidParameter],
+		parameters: [
+			resource === "polizas"
+				? { ...uuidParameter, schema: { type: "string", minLength: 2 } }
+				: uuidParameter,
+		],
 		get: {
 			tags: [resource],
 			summary: `Obtiene un elemento de ${resource}`,
@@ -82,6 +86,13 @@ const crudPaths = (resource: string, schema: Record<string, unknown>) => ({
 				200: okResponse,
 				404: { description: "No encontrado" },
 				...errorResponses,
+				...(resource === "reclamos" || resource === "polizas"
+					? {
+							409: {
+								description: "Conflicto con el estado actual del recurso",
+							},
+						}
+					: {}),
 			},
 		},
 		delete: {
@@ -92,6 +103,9 @@ const crudPaths = (resource: string, schema: Record<string, unknown>) => ({
 				200: okResponse,
 				404: { description: "No encontrado" },
 				...errorResponses,
+				...(resource === "reclamos"
+					? { 409: { description: "El reclamo ya fue decidido" } }
+					: {}),
 			},
 		},
 	},
@@ -117,6 +131,10 @@ const resourceSchemas = {
 		startDate: { type: "string", format: "date" },
 		endDate: { type: "string", format: "date" },
 		monthlyPremium: { type: "number" },
+		status: {
+			type: "string",
+			enum: ["ACTIVE", "IN_GRACE", "SUSPENDED", "EXPIRED"],
+		},
 	}),
 	afiliados: objectSchema({
 		name: { type: "string" },
@@ -124,6 +142,7 @@ const resourceSchemas = {
 		planId: { type: "string" },
 		startDate: { type: "string", format: "date" },
 		email: { type: "string", format: "email" },
+		status: { type: "string", enum: ["ACTIVE", "SUSPENDED", "INACTIVE"] },
 	}),
 	reclamos: objectSchema({
 		insuredId: { type: "string", format: "uuid" },
@@ -452,6 +471,30 @@ const spec = {
 		...crudPaths("polizas", resourceSchemas.polizas),
 		...crudPaths("afiliados", resourceSchemas.afiliados),
 		...crudPaths("reclamos", resourceSchemas.reclamos),
+		...Object.fromEntries(
+			["aprobar", "rechazar"].map((action) => [
+				`/api/reclamos/{id}/${action}`,
+				{
+					parameters: [uuidParameter],
+					patch: {
+						tags: ["reclamos"],
+						summary:
+							action === "aprobar"
+								? "Aprueba un reclamo"
+								: "Rechaza un reclamo",
+						description:
+							"Solo Administración y Supervisión. Repetir la misma decisión devuelve el estado guardado.",
+						security: bearerSecurity,
+						responses: {
+							200: okResponse,
+							404: { description: "Reclamo no encontrado" },
+							409: { description: "El reclamo tiene una decisión distinta" },
+							...errorResponses,
+						},
+					},
+				},
+			]),
+		),
 		...crudPaths("notificaciones", resourceSchemas.notificaciones),
 	},
 };

@@ -1,8 +1,32 @@
+import {
+	type ClaimStatus,
+	type PolicyStatus,
+	Prisma,
+} from "../lib/generated/client/index.js";
 import { prisma } from "../lib/prisma.js";
 import {
 	type NotificationService,
 	notificationService,
 } from "../services/notifications.service.js";
+
+const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
+export const policyDatesInOrder = ({
+	startDate,
+	endDate,
+}: {
+	startDate: Date;
+	endDate: Date;
+}) => dateOnly(startDate) <= dateOnly(endDate);
+
+const missingRecord = (error: unknown) =>
+	error instanceof Prisma.PrismaClientKnownRequestError &&
+	(error as { code: string }).code === "P2025";
+
+const claimConflict = (res) =>
+	res.status(409).json({
+		error: "CONFLICT",
+		message: "El reclamo ya fue decidido",
+	});
 
 export class BusinessController {
 	constructor(
@@ -88,17 +112,104 @@ export class BusinessController {
 		res.json(row);
 	};
 
-	decideClaim = (status) => async (req, res) => {
-		const row = await this.database.claim.update({
-			where: { id: req.params.id },
-			data: { status },
-		});
-		await this.notifications.create({
-			type: status === "APPROVED" ? "success" : "error",
-			title: "Reclamo procesado",
-			message: `Reclamo ${row.id}: ${status}.`,
-		});
-		res.json(row);
+	decideClaim =
+		(status: Exclude<ClaimStatus, "UNDER_REVIEW">) => async (req, res) => {
+			const id = req.params.id;
+			const claim = await this.database.$transaction(async (transaction) => {
+				const updated = await transaction.claim.updateMany({
+					where: { id, status: "UNDER_REVIEW" },
+					data: { status },
+				});
+				const row = await transaction.claim.findUniqueOrThrow({
+					where: { id },
+				});
+				if (updated.count) {
+					await this.notifications.create(
+						{
+							type: status === "APPROVED" ? "success" : "error",
+							title: "Reclamo procesado",
+							message: `Reclamo ${row.id}: ${status}.`,
+						},
+						transaction,
+					);
+				}
+				return row;
+			});
+			if (claim.status !== status) return claimConflict(res);
+			res.json(claim);
+		};
+
+	private async mutatePendingClaim<T>(
+		id: string,
+		res,
+		mutate: (where: { id: string; status: "UNDER_REVIEW" }) => Promise<T>,
+	) {
+		try {
+			return await mutate({ id, status: "UNDER_REVIEW" });
+		} catch (error) {
+			if (!missingRecord(error)) throw error;
+			const claim = await this.database.claim.findUnique({ where: { id } });
+			if (!claim) throw error;
+			claimConflict(res);
+		}
+	}
+
+	editPendingClaim = async (req, res) => {
+		const claim = await this.mutatePendingClaim(req.params.id, res, (where) =>
+			this.database.claim.update({
+				where,
+				data: req.body,
+				include: { insured: true, provider: true },
+			}),
+		);
+		if (claim) res.json(claim);
+	};
+
+	removePendingClaim = async (req, res) => {
+		const claim = await this.mutatePendingClaim(req.params.id, res, (where) =>
+			this.database.claim.delete({ where }),
+		);
+		if (claim) res.status(204).end();
+	};
+
+	updatePolicy = async (req, res) => {
+		const id = req.params.id;
+		const { startDate, endDate } = req.body;
+		let where: Prisma.PolicyWhereUniqueInput = { id };
+		if (startDate || endDate) {
+			const current = await this.database.policy.findUniqueOrThrow({
+				where,
+				select: { startDate: true, endDate: true },
+			});
+			if (
+				!policyDatesInOrder({
+					startDate: startDate ?? current.startDate,
+					endDate: endDate ?? current.endDate,
+				})
+			) {
+				return res.status(422).json({
+					error: "VALIDATION_ERROR",
+					message: "El fin de vigencia debe ser igual o posterior al inicio",
+				});
+			}
+			// Ensure a concurrent change to either date cannot invalidate this check.
+			where = { id, ...current };
+		}
+		try {
+			const policy = await this.database.policy.update({
+				where,
+				data: req.body,
+				include: { plan: true },
+			});
+			res.json(policy);
+		} catch (error) {
+			if (!(startDate || endDate) || !missingRecord(error)) throw error;
+			return res.status(409).json({
+				error: "CONFLICT",
+				message:
+					"La vigencia cambió durante la edición. Vuelve a consultar la póliza.",
+			});
+		}
 	};
 
 	createService = async (req, res) => {
@@ -198,19 +309,22 @@ export class BusinessController {
 	};
 
 	payInvoice = async (req, res) => {
+		const paidAt = this.today();
 		const invoice = await this.database.$transaction(async (transaction) => {
 			const invoiceRow = await transaction.invoice.update({
 				where: { id: req.params.id },
 				data: {
 					status: "PAID",
-					paidAt: this.today(),
+					paidAt,
 					reference: req.body.reference,
 				},
 			});
-			await transaction.policy.update({
-				where: { id: invoiceRow.policyId },
-				data: { status: "ACTIVE" },
-			});
+			await this.setPolicyFromInvoice(
+				transaction,
+				invoiceRow.policyId,
+				"ACTIVE",
+				paidAt,
+			);
 			return invoiceRow;
 		});
 		res.json(invoice);
@@ -237,13 +351,13 @@ export class BusinessController {
 	};
 
 	graceInvoice = async (req, res) => {
-		const invoice = await this.database.invoice.update({
-			where: { id: req.params.id },
-			data: { status: "IN_GRACE" },
-		});
-		await this.database.policy.update({
-			where: { id: invoice.policyId },
-			data: { status: "IN_GRACE" },
+		const invoice = await this.database.$transaction(async (transaction) => {
+			const row = await transaction.invoice.update({
+				where: { id: req.params.id },
+				data: { status: "IN_GRACE" },
+			});
+			await this.setPolicyFromInvoice(transaction, row.policyId, "IN_GRACE");
+			return row;
 		});
 		res.json(invoice);
 	};
@@ -256,12 +370,31 @@ export class BusinessController {
 			return res
 				.status(404)
 				.json({ error: "NOT_FOUND", message: "Factura no encontrada" });
-		await this.database.policy.update({
-			where: { id: invoice.policyId },
-			data: { status: "SUSPENDED" },
-		});
+		await this.setPolicyFromInvoice(
+			this.database,
+			invoice.policyId,
+			"SUSPENDED",
+		);
 		res.status(204).end();
 	};
+
+	private setPolicyFromInvoice(
+		database: Pick<Prisma.TransactionClient, "policy">,
+		id: string,
+		status: Exclude<PolicyStatus, "EXPIRED">,
+		operationDate = this.today(),
+	) {
+		const date = new Date(dateOnly(operationDate));
+		return database.policy.updateMany({
+			where: {
+				id,
+				status: { not: "EXPIRED" },
+				startDate: { lte: date },
+				endDate: { gte: date },
+			},
+			data: { status },
+		});
+	}
 
 	dashboard = async (_req, res) => {
 		const [activos, reclamosPendientes, autorizacionesHoy, montoReclamos] =

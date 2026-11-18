@@ -100,11 +100,13 @@ const getPlanById = (plans, planId) =>
 	};
 
 export default function ARS_Futuro_App() {
-	const [tab, setTab] = useState("dashboard");
+	const [selectedTab, setTab] = useState("dashboard");
 
 	// Estados de autenticación
 	const [isAuthenticated, setIsAuthenticated] = useState(false);
 	const [currentUser, setCurrentUser] = useState(null);
+	const isSupervisor = currentUser?.rol === "Supervisor";
+	const tab = isSupervisor ? "reclamos" : selectedTab;
 	const [loginForm, setLoginForm] = useState({ usuario: "", password: "" });
 	const [loginError, setLoginError] = useState("");
 	const [loginLoading, setLoginLoading] = useState(false);
@@ -207,14 +209,15 @@ export default function ARS_Futuro_App() {
 		if (!isAuthenticated || currentUser?.rol === "Afiliado") return undefined;
 		setLoading(true);
 		const isAdmin = currentUser?.rol === "Administrador";
+		const isStaff = isAdmin || currentUser?.rol === "Agente";
 		Promise.all([
-			resourcesApi.planes(),
-			resourcesApi.afiliados(),
-			resourcesApi.autorizaciones(),
+			isStaff ? resourcesApi.planes() : Promise.resolve([]),
+			isStaff ? resourcesApi.afiliados() : Promise.resolve([]),
+			isStaff ? resourcesApi.autorizaciones() : Promise.resolve([]),
 			resourcesApi.reclamos(),
-			resourcesApi.proveedores(),
+			isStaff ? resourcesApi.proveedores() : Promise.resolve([]),
 			isAdmin ? resourcesApi.polizas() : Promise.resolve([]),
-			resourcesApi.servicios(),
+			isStaff ? resourcesApi.servicios() : Promise.resolve([]),
 			isAdmin ? resourcesApi.pagos() : Promise.resolve([]),
 			isAdmin ? resourcesApi.facturas() : Promise.resolve([]),
 		])
@@ -387,6 +390,25 @@ export default function ARS_Futuro_App() {
 		setReclamaciones((prev) => [nuevo, ...prev]);
 	};
 
+	const decidirReclamo = async (id: string, accion: "aprobar" | "rechazar") => {
+		try {
+			const { estado } = adaptReclamo(
+				await mutationsApi.decidirReclamo(id, accion),
+			);
+			setReclamaciones((prev) =>
+				prev.map((reclamo) =>
+					reclamo.id === id ? { ...reclamo, estado } : reclamo,
+				),
+			);
+		} catch (error) {
+			addNotification({
+				type: "error",
+				title: "No se pudo procesar el reclamo",
+				message: error.response?.data?.message || "Intenta de nuevo.",
+			});
+		}
+	};
+
 	const crearAutorizacion = async ({
 		afiliadoId,
 		proveedorId,
@@ -549,6 +571,22 @@ export default function ARS_Futuro_App() {
 		});
 	};
 
+	const refrescarPoliza = async (id: string) => {
+		try {
+			const actualizada = adaptPoliza(await resourcesApi.poliza(id));
+			setPolizas((prev) => prev.map((p) => (p.id === id ? actualizada : p)));
+			return actualizada;
+		} catch {
+			addNotification({
+				type: "warning",
+				title: "Estado de póliza sin actualizar",
+				message:
+					"Vuelve a cargar la página para consultar el estado confirmado.",
+			});
+			return null;
+		}
+	};
+
 	const registrarPagoPrima = async ({ facturaId, referencia }) => {
 		const factura = facturas.find((f) => f.id === facturaId);
 		if (!factura) return null;
@@ -558,16 +596,14 @@ export default function ARS_Futuro_App() {
 		setFacturas((prev) =>
 			prev.map((f) => (f.id === facturaId ? actualizada : f)),
 		);
-		setPolizas((prev) =>
-			prev.map((p) =>
-				p.id === factura.polizaId ? { ...p, estado: "Vigente" } : p,
-			),
-		);
+		const poliza = await refrescarPoliza(factura.polizaId);
 		addNotification({
 			id: Date.now(),
 			type: "success",
 			title: "Pago de prima registrado",
-			message: `La póliza ${factura.polizaId} quedó vigente.`,
+			message: poliza
+				? `Estado de la póliza ${poliza.id}: ${poliza.estado}.`
+				: "El pago quedó registrado.",
 		});
 		return actualizada;
 	};
@@ -581,18 +617,14 @@ export default function ARS_Futuro_App() {
 		setFacturas((prev) =>
 			prev.map((f) => (f.id === facturaId ? actualizada : f)),
 		);
-		setPolizas((prev) =>
-			prev.map((p) =>
-				p.id === factura.polizaId
-					? { ...p, estado: "En periodo de gracia" }
-					: p,
-			),
-		);
+		const poliza = await refrescarPoliza(factura.polizaId);
 		addNotification({
 			id: Date.now(),
 			type: "warning",
-			title: "Periodo de gracia",
-			message: `La póliza ${factura.polizaId} está en periodo de gracia.`,
+			title: "Periodo de gracia registrado en la factura",
+			message: poliza
+				? `Estado de la póliza ${poliza.id}: ${poliza.estado}.`
+				: "",
 		});
 	};
 
@@ -600,17 +632,14 @@ export default function ARS_Futuro_App() {
 		const factura = facturas.find((f) => f.id === facturaId);
 		if (!factura) return;
 		await mutationsApi.suspenderFactura(facturaId);
-		setPolizas((prev) =>
-			prev.map((p) =>
-				p.id === factura.polizaId ? { ...p, estado: "Suspendida" } : p,
-			),
-		);
-		addNotification({
-			id: Date.now(),
-			type: "error",
-			title: "Póliza suspendida",
-			message: `Se suspendió la póliza ${factura.polizaId} por falta de pago.`,
-		});
+		const poliza = await refrescarPoliza(factura.polizaId);
+		if (poliza) {
+			addNotification({
+				type: "info",
+				title: "Estado de la póliza",
+				message: `La póliza ${poliza.id} figura como ${poliza.estado}.`,
+			});
+		}
 	};
 
 	const clearSessionData = () => {
@@ -920,6 +949,7 @@ export default function ARS_Futuro_App() {
 					tab={tab}
 					setTab={setTab}
 					isAdmin={currentUser?.rol === "Administrador"}
+					isSupervisor={isSupervisor}
 				/>
 
 				<div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -1201,6 +1231,9 @@ export default function ARS_Futuro_App() {
 								afiliados={afiliados}
 								proveedores={proveedores}
 								onRegistrar={registrarReclamo}
+								onDecidir={decidirReclamo}
+								canRegister={!isSupervisor}
+								canDecide={isSupervisor || currentUser?.rol === "Administrador"}
 								addNotification={addNotification}
 								tema={tema}
 							/>
@@ -1899,25 +1932,39 @@ function ReclamosTab({
 	afiliados,
 	proveedores,
 	onRegistrar,
+	onDecidir,
+	canRegister,
+	canDecide,
 	addNotification,
 	tema,
 }) {
 	const [estado, setEstado] = useState("Todos");
 	const [q, setQ] = useState("");
 	const [open, setOpen] = useState(false);
+	const [decidiendo, setDecidiendo] = useState(false);
 	const g = graficaDe(tema);
+
+	const decidir = async (id: string, accion: "aprobar" | "rechazar") => {
+		if (!window.confirm(`¿Confirmas que quieres ${accion} este reclamo?`))
+			return;
+		setDecidiendo(true);
+		try {
+			await onDecidir(id, accion);
+		} finally {
+			setDecidiendo(false);
+		}
+	};
 
 	const data = useMemo(() => {
 		return reclamaciones
 			.filter((r) => (estado === "Todos" ? true : r.estado === estado))
-			.filter((r) => {
-				const af = afiliados.find((x) => x.id === r.afiliadoId);
-				return !q
-					? true
-					: af?.nombre?.toLowerCase().includes(q.toLowerCase()) ||
-							String(r.id).includes(q);
-			});
-	}, [reclamaciones, afiliados, estado, q]);
+			.filter(
+				(r) =>
+					!q ||
+					r.afiliadoNombre?.toLowerCase().includes(q.toLowerCase()) ||
+					String(r.id).includes(q),
+			);
+	}, [reclamaciones, estado, q]);
 
 	const total = useMemo(() => data.reduce((s, r) => s + r.monto, 0), [data]);
 	const aprobacionRechazo = useMemo(
@@ -1958,17 +2005,19 @@ function ReclamosTab({
 							<Input
 								value={q}
 								onChange={setQ}
-								placeholder="Buscar por nombre o cedula"
+								placeholder="Buscar por nombre o ID"
 								className="pl-9"
 							/>
 						</div>
 						<div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
-							<Button
-								className="flex items-center justify-center flex-1 sm:flex-initial"
-								onClick={() => setOpen(true)}
-							>
-								<Plus className="w-4 h-4 mr-1" /> Registrar reclamo
-							</Button>
+							{canRegister && (
+								<Button
+									className="flex items-center justify-center flex-1 sm:flex-initial"
+									onClick={() => setOpen(true)}
+								>
+									<Plus className="w-4 h-4 mr-1" /> Registrar reclamo
+								</Button>
+							)}
 							<Button
 								variant="ghost"
 								className="flex items-center justify-center flex-1 sm:flex-initial"
@@ -1977,8 +2026,8 @@ function ReclamosTab({
 										["ID", "Afiliado", "Proveedor", "Monto", "Estado", "Fecha"],
 										...data.map((r) => [
 											r.id,
-											afiliados.find((x) => x.id === r.afiliadoId)?.nombre,
-											proveedores.find((p) => p.id === r.proveedorId)?.nombre,
+											r.afiliadoNombre,
+											r.proveedorNombre,
 											r.monto,
 											r.estado,
 											formatDate(r.fecha),
@@ -2000,18 +2049,27 @@ function ReclamosTab({
 									<th className="py-2 pr-2 min-w-[100px]">Monto</th>
 									<th className="py-2 pr-2 min-w-[80px]">Estado</th>
 									<th className="py-2 pr-2 min-w-[80px]">Fecha</th>
+									{canDecide && <th className="py-2 pr-2">Acciones</th>}
 								</tr>
 							</thead>
 							<tbody>
+								{data.length === 0 && (
+									<tr>
+										<td
+											colSpan={canDecide ? 7 : 6}
+											className="py-4 text-center"
+										>
+											No hay reclamos para los filtros seleccionados.
+										</td>
+									</tr>
+								)}
 								{data.map((r) => (
 									<tr key={r.id} className="border-b last:border-0">
 										<td className="py-2 pr-2">{r.id}</td>
 										<td className="py-2 pr-2 font-medium">
-											{afiliados.find((x) => x.id === r.afiliadoId)?.nombre}
+											{r.afiliadoNombre}
 										</td>
-										<td className="py-2 pr-2">
-											{proveedores.find((p) => p.id === r.proveedorId)?.nombre}
-										</td>
+										<td className="py-2 pr-2">{r.proveedorNombre}</td>
 										<td className="py-2 pr-2">{currency(r.monto)}</td>
 										<td className="py-2 pr-2">
 											<Badge
@@ -2027,6 +2085,27 @@ function ReclamosTab({
 											</Badge>
 										</td>
 										<td className="py-2 pr-2">{formatDate(r.fecha)}</td>
+										{canDecide && (
+											<td className="py-2 pr-2">
+												{r.estado === "En revisión" && (
+													<div className="flex flex-wrap gap-2">
+														<Button
+															disabled={decidiendo}
+															onClick={() => decidir(r.id, "aprobar")}
+														>
+															Aprobar
+														</Button>
+														<Button
+															variant="ghost"
+															disabled={decidiendo}
+															onClick={() => decidir(r.id, "rechazar")}
+														>
+															Rechazar
+														</Button>
+													</div>
+												)}
+											</td>
+										)}
 									</tr>
 								))}
 							</tbody>
@@ -2073,14 +2152,16 @@ function ReclamosTab({
 				</div>
 			</div>
 
-			<RegistrarReclamoModal
-				open={open}
-				onClose={() => setOpen(false)}
-				afiliados={afiliados}
-				proveedores={proveedores}
-				onRegistrar={onRegistrar}
-				addNotification={addNotification}
-			/>
+			{canRegister && open && (
+				<RegistrarReclamoModal
+					open={open}
+					onClose={() => setOpen(false)}
+					afiliados={afiliados}
+					proveedores={proveedores}
+					onRegistrar={onRegistrar}
+					addNotification={addNotification}
+				/>
+			)}
 		</motion.div>
 	);
 }
@@ -2096,15 +2177,27 @@ function RegistrarReclamoModal({
 	const [afiliadoId, setAfiliadoId] = useState(afiliados[0]?.id ?? "");
 	const [proveedorId, setProveedorId] = useState(proveedores[0]?.id ?? "");
 	const [monto, setMonto] = useState(500);
+	const [enviando, setEnviando] = useState(false);
 
-	const submit = () => {
-		onRegistrar({ afiliadoId, proveedorId, monto: Number(monto) });
-		onClose?.();
-		addNotification({
-			type: "success",
-			title: "Reclamo Registrado",
-			message: "El reclamo ha sido registrado exitosamente y está en revisión.",
-		});
+	const submit = async () => {
+		setEnviando(true);
+		try {
+			await onRegistrar({ afiliadoId, proveedorId, monto: Number(monto) });
+			onClose?.();
+			addNotification({
+				type: "success",
+				title: "Reclamo registrado",
+				message: "El reclamo está en revisión.",
+			});
+		} catch (error) {
+			addNotification({
+				type: "error",
+				title: "No se pudo registrar el reclamo",
+				message: error.response?.data?.message || "Intenta de nuevo.",
+			});
+		} finally {
+			setEnviando(false);
+		}
 	};
 
 	return (
@@ -2171,6 +2264,7 @@ function RegistrarReclamoModal({
 					variant="primary"
 					className="flex items-center justify-center"
 					onClick={submit}
+					disabled={enviando || !afiliadoId || !proveedorId || monto <= 0}
 				>
 					<CheckCircle2 className="w-4 h-4 mr-1" />
 					Guardar
