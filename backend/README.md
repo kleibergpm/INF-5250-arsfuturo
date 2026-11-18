@@ -1,214 +1,56 @@
-# Backend ARS Futuro
+# Backend de ARS Futuro
 
-API REST MVC para ARS Futuro, desarrollada con Express 5, TypeScript, Prisma y PostgreSQL. La aplicación usa JWT para autenticación, Zod para validación de solicitudes y Swagger para la documentación interactiva.
-
-## Índice
-
-- [Instalación local](#instalación-local)
-- [Variables de entorno](#variables-de-entorno)
-- [Inicializar la base de datos](#inicializar-la-base-de-datos)
-- [Ejecutar la API](#ejecutar-la-api)
-- [API](#api)
-- [Comandos disponibles](#comandos-disponibles)
-- [Pruebas](#pruebas)
-- [Estructura del proyecto](#estructura-del-proyecto)
-
-## Instalación local
-
-```bash
-cd backend
-pnpm install
-```
-
-Copia el archivo de ejemplo del entorno y prepara el cliente de Prisma:
-
-```powershell
-Copy-Item .env.example .env
-pnpm run prisma:generate
-```
+API REST con Express, TypeScript, Prisma y PostgreSQL. Toda la preparación de una instalación nueva está en la [guía de arranque](../README.md#preparación-local). Los comandos de esta página se ejecutan desde `backend/`.
 
 ## Variables de entorno
 
-Edita el archivo `.env` con tus valores locales:
+Copia `.env.example` a `.env` y completa los valores locales antes de generar el cliente de Prisma.
 
-```env
-PORT=4000
-DATABASE_URL="postgresql://postgres:TU_PASSWORD@localhost:5432/ars_futuro?schema=public"
-SHADOW_DATABASE_URL="postgresql://postgres:TU_PASSWORD@localhost:5432/ars_futuro_shadow?schema=public"
-JWT_SECRET="una-clave-larga-y-privada"
-CORS_ORIGIN="http://localhost:5173"
-```
+| Variable | Valor o uso |
+| --- | --- |
+| `DATABASE_URL` | URL PostgreSQL obligatoria. Debe identificar la base de datos. |
+| `JWT_SECRET` | Clave privada obligatoria para firmar tokens. |
+| `PORT` | Puerto de la API. El valor predeterminado es `4000`. |
+| `CORS_ORIGIN` | Origen HTTP del frontend. El valor predeterminado es `http://localhost:5173`. |
+| `SHADOW_DATABASE_URL` | URL opcional de la base shadow para desarrollar migraciones. |
 
-### Descripción de variables
+## PostgreSQL y Prisma
 
-| Variable              | Obligatoria | Descripción                                                  |
-| --------------------- | :---------: | ------------------------------------------------------------ |
-| `PORT`                |      —      | Puerto en el que correrá la API (4000 por defecto)            |
-| `DATABASE_URL`        |      ✅     | Conexión a PostgreSQL                                         |
-| `SHADOW_DATABASE_URL` |      —      | Conexión opcional a una base shadow para `prisma migrate dev`  |
-| `JWT_SECRET`          |      ✅     | Clave para firmar tokens JWT                                  |
-| `CORS_ORIGIN`         |      —      | Origen permitido por CORS del frontend                         |
+`prisma/schema.prisma` define los modelos. `prisma.config.ts` configura las migraciones y el seed. Aplica el historial con `pnpm exec prisma migrate deploy` y genera el cliente con `pnpm run prisma:generate`. Usa `pnpm run prisma:migrate` para crear una migración de desarrollo y `pnpm run prisma:seed` para cargar [datos demo](../README.md#acceso-demo) en una base local.
 
-> El archivo `.env.example` ya está incluido en la carpeta backend y sirve como base segura para la configuración local. `SHADOW_DATABASE_URL` es opcional: solo se usa al crear migraciones nuevas.
+Para un prototipo sin historial puedes usar `pnpm exec prisma db push` en una base separada. Las bases compartidas se administran mediante las migraciones.
 
-## Base de datos
+### Instalación alternativa con SQL
 
-El schema vive en `prisma/schema.prisma` y las migraciones en `prisma/migrations/`. La configuración de Prisma 7 está en `prisma.config.ts`, que carga el `.env` y expone `SHADOW_DATABASE_URL` solo si existe.
-
-Inicializa la base aplicando las migraciones:
-
-```bash
-pnpm exec prisma migrate deploy
-pnpm run prisma:seed
-```
-
-Si prefieres sincronizar el schema directamente, sin historial de migraciones:
-
-```bash
-pnpm exec prisma db push
-```
-
-Si solo deseas reiniciar los datos demo, puedes ejecutar:
-
-```bash
-pnpm run prisma:seed
-```
-
-Para crear una migración nueva a partir de cambios en el schema:
-
-```bash
-pnpm run prisma:migrate
-```
-
-### Instalación manual con SQL (alternativa)
-
-`sql/init-postgresql.sql` contiene el esquema consolidado actual, incluido `INSURED` y `users.national_id`. `sql/seed-postgresql.sql` contiene datos demo compatibles con ese esquema. Sobre una base **vacía creada previamente**, desde `backend/`:
+Los archivos de `sql/` permiten inicializar y sembrar una base **vacía** cuando el entorno dispone de `psql`. Usa un solo método de inicialización y un solo seed.
 
 ```bash
 psql -d ars_futuro -v ON_ERROR_STOP=1 -f sql/init-postgresql.sql
 psql -d ars_futuro -v ON_ERROR_STOP=1 -f sql/seed-postgresql.sql
 ```
 
-No hace falta ejecutar el SQL de cada migración manualmente. El flujo recomendado al clonar sigue siendo `pnpm exec prisma migrate deploy` y `pnpm run prisma:seed`; Prisma aplica automáticamente el historial en orden. Se conservan los archivos de `prisma/migrations/` para actualizar bases existentes.
-
-Elige una sola forma de inicializar y un solo seed. No ejecutes `init-postgresql.sql` sobre una base existente ni combines los dos seeds. Si inicializaste con SQL y luego vas a usar Prisma Migrate, registra primero las migraciones incluidas en el esquema consolidado (sin volver a ejecutarlas):
+Si migras a Prisma Migrate desde ese esquema consolidado, comprueba primero que contiene ambas migraciones y regístralas como aplicadas.
 
 ```bash
 pnpm exec prisma migrate resolve --applied 20260917235148_first_migration
 pnpm exec prisma migrate resolve --applied 20261018000000_insured_registration
 ```
 
+## API y estructura
 
-Los datos iniciales del seed incluyen:
+`pnpm run dev` inicia la API con recarga automática. `pnpm run start` la inicia sin watch. La especificación [Swagger local](http://localhost:4000/api/docs) describe los recursos, permisos y operaciones de negocio. Las rutas protegidas usan `Authorization: Bearer <token>`.
 
-- `admin / admin123` y `admin2 / admin456` (administradores)
-- `agente / agente123`, `agente2 / agente456` y `agente3 / agente789` (agentes)
-- `supervisor / super123` y `supervisor2 / super456` (supervisores)
-- `afiliado / afiliado123` (rol `INSURED`, cédula ficticia `00112345678`, asociada al primer afiliado demo)
+- `src/app.ts` monta middleware y rutas. `src/server.ts` gestiona el arranque y apagado.
+- `src/routes/` reúne permisos y validación Zod. `src/controllers/` coordina las operaciones.
+- `src/services/` contiene servicios del dominio e integraciones. `src/lib/` contiene configuración, Prisma, logs y Swagger.
+- `prisma/` contiene modelos, migraciones y seed. `tests/` contiene las pruebas de Vitest.
 
-## Ejecutar la API
-
-```bash
-pnpm run dev
-```
-
-Verifica:
-
-- `http://localhost:4000/health`
-- `http://localhost:4000/api/docs`
-
-## API
-
-Todos los endpoints, salvo `POST /api/auth/login`, `POST /api/auth/register` y `/health`, requieren autenticación con `Authorization: Bearer <token>`.
-
-Los roles disponibles son `ADMINISTRATOR`, `AGENT`, `SUPERVISOR` e `INSURED`, y cada ruta declara explícitamente quién puede usarla.
-
-### Recursos principales
-
-- `/api/afiliados`
-- `/api/proveedores`
-- `/api/planes`
-- `/api/polizas`
-- `/api/reclamos`
-- `/api/autorizaciones`
-- `/api/mis-autorizaciones` (consulta propia del rol `INSURED`)
-- `/api/servicios`
-- `/api/pagos`
-- `/api/facturas`
-- `/api/notificaciones`
-
-### Operaciones de negocio
-
-- `/api/reclamos/:id/aprobar`
-- `/api/reclamos/:id/rechazar`
-- `/api/autorizaciones/:id/aprobar`
-- `/api/autorizaciones/:id/rechazar`
-- `/api/facturas/generar`
-- `/api/facturas/:id/pagar`
-- `/api/facturas/:id/recordatorio`
-- `/api/facturas/:id/gracia`
-- `/api/facturas/:id/suspender`
-- `/api/dashboard/resumen`
-
-## Comandos disponibles
-
-| Comando                | Descripción                                              |
-| ---------------------- | -------------------------------------------------------- |
-| `pnpm run dev`         | Desarrollo con recarga automática (`tsx watch`)           |
-| `pnpm run start`       | Inicia la API sin watch                                   |
-| `pnpm run typecheck`   | Verifica TypeScript                                       |
-| `pnpm test`            | Ejecuta las pruebas con Vitest                            |
-| `pnpm run check`       | Ejecuta Biome sobre `src`, `tests` y `prisma`             |
-| `pnpm run check:fix`   | Aplica las correcciones de Biome                         |
-| `pnpm run prisma:generate` | Genera el cliente en `src/lib/generated/client`       |
-| `pnpm run prisma:migrate`  | Crea y aplica una migración nueva                    |
-| `pnpm run prisma:seed`      | Carga los datos demo                                |
-
-## Pruebas
-
-Las pruebas usan Vitest y no requieren la base de datos:
+## Validación
 
 ```bash
+pnpm run check
+pnpm run typecheck
 pnpm test
 ```
 
-Para ejecutar una sola prueba:
-
-```bash
-pnpm exec vitest run tests/auth.test.ts
-```
-
-Las convenciones de cobertura por endpoint están en [tests/AGENTS.md](tests/AGENTS.md). Para pruebas de carga y humo consulta la [guía de K6](k6/README.md).
-
-## Estructura del proyecto
-
-```text
-backend/
-├── k6/                    # pruebas de carga y humo con K6
-├── prisma/
-│   ├── migrations/        # historial de migraciones
-│   ├── schema.prisma      # modelo de datos
-│   └── seed.ts            # datos demo
-├── src/
-│   ├── controllers/       # manejo de solicitudes HTTP
-│   ├── lib/               # configuración, Prisma y Swagger
-│   ├── middleware/        # autenticación, autorización, validación y errores
-│   ├── routes/            # registro de rutas, permisos y esquemas Zod
-│   ├── services/          # lógica reutilizable del dominio
-│   ├── Servicios/         # integraciones con servicios externos
-│   ├── app.ts             # configuración de Express y montaje de rutas
-│   └── server.ts          # arranque del servidor
-├── tests/                 # pruebas automatizadas
-├── AGENTS.md              # guía de agentes del backend
-└── README.md
-```
-
-El proyecto usa ESM (`type: module` con `NodeNext`), por lo que los imports locales de TypeScript llevan el especificador `.js`.
-
-## Documentación relacionada
-
-- [README del repositorio](../README.md)
-- [Arquitectura del sistema](../ARCHITECTURE.md)
-- [Convenciones de código](../CODING_CONVENTIONS.md)
-- [Guía de agentes del backend](AGENTS.md)
-- [Pruebas de carga con K6](k6/README.md)
+Genera el cliente de Prisma antes del typecheck y las pruebas. Vitest usa mocks para persistencia o integraciones externas y puede ejecutarse sin conectarse a PostgreSQL. Consulta la [guía de pruebas](tests/AGENTS.md) y las [suites de carga](k6/README.md).

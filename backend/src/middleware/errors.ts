@@ -1,6 +1,7 @@
+import { BusinessRuleError } from "../lib/business-rule-error.js";
 import { Prisma } from "../lib/generated/client/index.js";
 import { log } from "../lib/logger.js";
-import { CedulaValidationUnavailableError } from "../Servicios/cedulaValidation.service.js";
+import { CedulaValidationUnavailableError } from "../services/cedula-validation.service.js";
 export function notFound(_req, res) {
 	res
 		.status(404)
@@ -46,5 +47,3 @@ export function errorHandler(err, _req, res, next) {
 }
 export const asyncHandler = (fn) => (req, res, next) =>
 	Promise.resolve(fn(req, res, next)).catch(next);
-
-import { BusinessRuleError } from "../lib/business-rule-error.js";

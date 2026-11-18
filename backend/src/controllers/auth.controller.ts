@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { env } from "../lib/env.js";
 import { prisma } from "../lib/prisma.js";
-import { validateCedula } from "../Servicios/cedulaValidation.service.js";
+import { validateCedula } from "../services/cedula-validation.service.js";
 
 export class AuthController {
 	constructor(

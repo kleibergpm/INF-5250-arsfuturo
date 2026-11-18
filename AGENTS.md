@@ -2,7 +2,7 @@
 
 ## Gestor de paquetes
 
-- Usa exclusivamente `pnpm`. No ejecutes `npm`, `npx` ni actualices archivos `package-lock.json`.
+- Usa exclusivamente `pnpm` y conserva `pnpm-lock.yaml` como lockfile de cada paquete.
 - El repositorio no es un workspace raíz: ejecuta los comandos desde `backend/` o `FrontEnd/`, cada uno con su propio `pnpm-lock.yaml`.
 
 ## Estructura del proyecto
@@ -28,8 +28,10 @@
 - Fuera de `NODE_ENV=test`, el backend requiere `DATABASE_URL` y `JWT_SECRET`; copia `backend/.env.example` a `backend/.env` y configura PostgreSQL primero.
 - `SHADOW_DATABASE_URL` es opcional para generar Prisma y usar `prisma db push`; configúrala si vas a usar una base shadow dedicada con `prisma migrate dev`.
 - Después de cambiar `backend/prisma/schema.prisma`, ejecuta `cd backend && pnpm run prisma:generate`.
-- Para inicializar las tablas administradas por Prisma, ejecuta `cd backend && pnpm exec prisma db push` y luego `pnpm run prisma:seed`.
+- Para inicializar las tablas administradas por Prisma, aplica `pnpm -C backend exec prisma migrate deploy` y usa `pnpm -C backend run prisma:seed` para una base demo.
 - No combines `prisma db push` con los scripts manuales de `backend/sql/` sobre la misma base ya inicializada.
+
+Consulta el [README](README.md) para el arranque local y el [índice de documentación](docs/README.md) para las guías de diseño, arquitectura y calidad.
 
 ## Convenciones e integración
 

@@ -9,7 +9,7 @@ import { crud } from "../controllers/crud.controller.js";
 import { allow, authenticate } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/errors.js";
 import { validate } from "../middleware/validate.js";
-import { validateCedula } from "../Servicios/cedulaValidation.service.js";
+import { validateCedula } from "../services/cedula-validation.service.js";
 
 const r = Router();
 const uuid = z.object({ id: z.string().uuid() });

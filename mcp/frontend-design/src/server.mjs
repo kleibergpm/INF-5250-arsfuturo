@@ -3,10 +3,10 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
 
-const guidePath = new URL("../../../DESIGN.md", import.meta.url);
-const architecturePath = new URL("../../../ARCHITECTURE.md", import.meta.url);
-const conventionsPath = new URL("../../../CODING_CONVENTIONS.md", import.meta.url);
-const rulesPath = new URL("../../../RULES.md", import.meta.url);
+const guidePath = new URL("../../../docs/DESIGN.md", import.meta.url);
+const architecturePath = new URL("../../../docs/ARCHITECTURE.md", import.meta.url);
+const conventionsPath = new URL("../../../docs/CODING_CONVENTIONS.md", import.meta.url);
+const rulesPath = new URL("../../../docs/RULES.md", import.meta.url);
 
 function readGuide(path) {
 	return readFileSync(path, "utf8");
