@@ -1,8 +1,8 @@
 import { PrismaPg } from "@prisma/adapter-pg";
+import { readDatabaseUrl } from "./database-config.js";
 import { PrismaClient } from "./generated/client/index.js";
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) throw new Error("Connection string must be specified");
-
-const adapter = new PrismaPg({ connectionString });
+const adapter = new PrismaPg({
+	connectionString: readDatabaseUrl("DATABASE_URL"),
+});
 export const prisma = new PrismaClient({ adapter });

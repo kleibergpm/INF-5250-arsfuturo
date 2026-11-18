@@ -119,8 +119,7 @@ export class BusinessController {
 			!insured ||
 			!provider ||
 			insured.status !== "ACTIVE" ||
-			(authorizationId &&
-				(!authorization || authorization.status !== "APPROVED"))
+			(authorizationId && authorization?.status !== "APPROVED")
 		) {
 			return res.status(422).json({
 				error: "VALIDATION_ERROR",
@@ -264,7 +263,7 @@ export class BusinessController {
 		res.status(204).end();
 	};
 
-	dashboard = async (req, res) => {
+	dashboard = async (_req, res) => {
 		const [activos, reclamosPendientes, autorizacionesHoy, montoReclamos] =
 			await Promise.all([
 				this.database.insured.count({ where: { status: "ACTIVE" } }),

@@ -9,8 +9,7 @@ import { validate } from "../middleware/validate.js";
 import { validateCedula } from "../Servicios/cedulaValidation.service.js";
 
 const r = Router();
-const id = z.string().uuid();
-const uuid = z.object({ id });
+const uuid = z.object({ id: z.string().uuid() });
 const stringId = z.object({ id: z.string().min(2) });
 const roles = {
 	admin: ["ADMINISTRATOR"],
