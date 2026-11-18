@@ -1,12 +1,20 @@
-import { AnimatePresence, motion } from "framer-motion";
+import {
+	AnimatePresence,
+	motion,
+	useIsPresent,
+	useReducedMotion,
+} from "framer-motion";
 import { Bell, CheckCircle2, X, XCircle } from "lucide-react";
-import type {
-	ButtonHTMLAttributes,
-	InputHTMLAttributes,
-	ReactNode,
-	SelectHTMLAttributes,
+import {
+	type ButtonHTMLAttributes,
+	type InputHTMLAttributes,
+	type ReactNode,
+	type SelectHTMLAttributes,
+	useId,
+	useLayoutEffect,
+	useRef,
+	useState,
 } from "react";
-import { createPortal } from "react-dom";
 
 export const cls = (...values: Array<string | false | null | undefined>) =>
 	values.filter(Boolean).join(" ");
@@ -56,7 +64,7 @@ export const Button = ({
 			disabled={disabled}
 			onClick={onClick}
 			className={cls(
-				"rounded-xl font-semibold transition-all duration-200 cursor-pointer active:translate-y-px",
+				"rounded-xl font-semibold transition-all duration-200 cursor-pointer active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-soft)]",
 				variants[variant],
 				sizes[size],
 				disabled && "opacity-60 cursor-not-allowed",
@@ -68,7 +76,7 @@ export const Button = ({
 	);
 };
 
-type Notification = {
+export type Notification = {
 	id: number;
 	message: string;
 	type?: string;
@@ -82,7 +90,7 @@ export function NotificationContainer({
 	onRemove: (id: number) => void;
 }) {
 	return (
-		<div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
+		<div className="fixed top-4 right-4 left-4 z-50 space-y-2 sm:left-auto max-w-sm">
 			<AnimatePresence>
 				{notifications.map((notification) => (
 					<NotificationCard
@@ -127,7 +135,10 @@ function NotificationCard({
 		>
 			<div className="flex items-start gap-3">
 				<div className="flex-shrink-0 mt-0.5">{icon}</div>
-				<div className="flex-1 min-w-0">
+				<div
+					className="flex-1 min-w-0"
+					role={type === "error" ? "alert" : "status"}
+				>
 					{title && (
 						<p className="text-sm font-semibold text-[var(--text)] mb-1">
 							{title}
@@ -225,62 +236,186 @@ export const Divider = ({ className = "" }: { className?: string }) => (
 	<div className={cls("h-px w-full bg-[var(--border-soft)]", className)} />
 );
 
-export const Modal = ({
-	open,
+export const ModalActions = ({ children }: { children: ReactNode }) => (
+	<footer className="sticky bottom-0 mt-5 flex flex-wrap justify-end gap-3 border-t border-[var(--border-soft)] bg-[var(--surface-solid)] pb-2 pt-4">
+		{children}
+	</footer>
+);
+
+type ModalProps = {
+	open: boolean;
+	onClose: () => void;
+	onAfterClose?: () => void;
+	title: ReactNode;
+	children: ReactNode;
+};
+
+export function Modal({ open, onAfterClose, ...props }: ModalProps) {
+	const parentPresent = useIsPresent();
+	return (
+		<AnimatePresence propagate onExitComplete={onAfterClose}>
+			{open && parentPresent && <ModalDialog key="native-modal" {...props} />}
+		</AnimatePresence>
+	);
+}
+
+function ModalDialog({
 	onClose,
 	title,
 	children,
-	footer = null,
-}: {
-	open: boolean;
-	onClose: () => void;
-	title: ReactNode;
-	children: ReactNode;
-	footer?: ReactNode;
-}) =>
-	createPortal(
-		<AnimatePresence>
-			{open && (
-				<motion.div
-					className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4"
-					initial={{ opacity: 0 }}
-					animate={{ opacity: 1 }}
-					exit={{ opacity: 0 }}
-				>
-					<button
-						type="button"
-						aria-label="Cerrar ventana"
-						className="absolute inset-0 h-full w-full cursor-pointer bg-[var(--overlay)] backdrop-blur-[1px]"
-						onClick={onClose}
-					/>
-					<motion.div
-						initial={{ y: 20, opacity: 0 }}
-						animate={{ y: 0, opacity: 1 }}
-						exit={{ y: 20, opacity: 0 }}
-						className="relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-[1.35rem] bg-[var(--surface-solid)] p-3 sm:p-5 shadow-2xl"
+}: Omit<ModalProps, "open" | "onAfterClose">) {
+	const dialogRef = useRef<HTMLDialogElement>(null);
+	const titleRef = useRef<HTMLHeadingElement>(null);
+	const titleId = useId();
+	const isPresent = useIsPresent();
+	const reduceMotion = useReducedMotion();
+
+	useLayoutEffect(() => {
+		const dialog = dialogRef.current;
+		if (!dialog) return;
+		const trigger = document.activeElement;
+		dialog.showModal();
+		titleRef.current?.focus();
+		return () => {
+			dialog.close();
+			if (trigger instanceof HTMLElement && trigger.isConnected)
+				trigger.focus();
+		};
+	}, []);
+
+	return (
+		<motion.dialog
+			ref={dialogRef}
+			aria-labelledby={titleId}
+			initial={reduceMotion ? false : { opacity: 0, y: 10, scale: 0.985 }}
+			animate={{ opacity: 1, y: 0, scale: 1 }}
+			exit={reduceMotion ? undefined : { opacity: 0, y: 8, scale: 0.985 }}
+			transition={{ duration: reduceMotion ? 0 : 0.18, ease: "easeOut" }}
+			data-exiting={!isPresent}
+			data-reduced-motion={Boolean(reduceMotion)}
+			onCancel={(event) => {
+				event.preventDefault();
+				if (isPresent) onClose();
+			}}
+			onClick={(event) => {
+				if (isPresent && event.target === event.currentTarget) onClose();
+			}}
+			onKeyDown={(event) => {
+				if (!isPresent) {
+					event.preventDefault();
+					event.stopPropagation();
+					return;
+				}
+				if (event.key !== "Tab") return;
+				const controls = Array.from(
+					event.currentTarget.querySelectorAll<HTMLElement>(
+						"button, input, select, textarea, a[href], [tabindex]",
+					),
+				).filter(
+					(control) =>
+						control.tabIndex >= 0 &&
+						!control.matches(":disabled") &&
+						control.getClientRects().length > 0,
+				);
+				const first = controls[0];
+				const last = controls.at(-1);
+				const active = document.activeElement;
+				if (
+					event.shiftKey &&
+					(active === first || active === titleRef.current)
+				) {
+					event.preventDefault();
+					last?.focus();
+				} else if (!event.shiftKey && active === last) {
+					event.preventDefault();
+					first?.focus();
+				}
+			}}
+			onSubmitCapture={(event) => {
+				if (!isPresent) {
+					event.preventDefault();
+					event.stopPropagation();
+				}
+			}}
+			className="app-modal m-auto max-h-[90dvh] w-[calc(100%_-_1rem)] max-w-2xl overflow-y-auto scroll-pb-20 rounded-[1.35rem] bg-[var(--surface-solid)] p-0 text-[var(--text-body)] shadow-2xl backdrop:bg-[var(--overlay)] backdrop:backdrop-blur-[1px] data-[exiting=true]:pointer-events-none sm:w-[calc(100%_-_2rem)]"
+		>
+			<div className="p-3 sm:p-5">
+				<div className="flex items-center justify-between gap-2 sm:gap-4">
+					<h3
+						ref={titleRef}
+						id={titleId}
+						tabIndex={-1}
+						className="text-base font-semibold sm:text-lg"
 					>
-						<div className="flex items-center justify-between gap-2 sm:gap-4">
-							<h3 className="text-base sm:text-lg font-semibold truncate">
-								{title}
-							</h3>
-							<button
-								type="button"
-								aria-label="Cerrar ventana"
-								className="p-1 sm:p-2 rounded-lg hover:bg-[var(--hover-veil)] flex-shrink-0"
-								onClick={onClose}
-							>
-								<XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--text-muted)]" />
-							</button>
-						</div>
-						<div className="mt-3">{children}</div>
-						{footer && (
-							<div className="mt-4 flex flex-col sm:flex-row justify-end gap-2">
-								{footer}
-							</div>
-						)}
-					</motion.div>
-				</motion.div>
-			)}
-		</AnimatePresence>,
-		document.body,
+						{title}
+					</h3>
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						aria-label="Cerrar ventana"
+						onClick={onClose}
+						disabled={!isPresent}
+					>
+						<XCircle aria-hidden="true" className="h-5 w-5" />
+					</Button>
+				</div>
+				<div className="mt-3">{children}</div>
+			</div>
+		</motion.dialog>
 	);
+}
+
+export function ActionConfirmation({
+	open,
+	onClose,
+	onAfterClose,
+	title,
+	children,
+	label,
+	variant = "primary",
+	onConfirm,
+}: ModalProps & {
+	label: string;
+	variant?: ButtonProps["variant"];
+	onConfirm: () => Promise<void>;
+}) {
+	const [pending, setPending] = useState(false);
+
+	const confirm = async () => {
+		setPending(true);
+		try {
+			await onConfirm();
+			onClose();
+		} finally {
+			setPending(false);
+		}
+	};
+
+	const close = () => {
+		if (!pending) onClose();
+	};
+	return (
+		<Modal
+			open={open}
+			title={title}
+			onClose={close}
+			onAfterClose={onAfterClose}
+		>
+			<p className="text-sm text-[var(--text-muted)]">{children}</p>
+			<ModalActions>
+				<Button variant="ghost" onClick={close} disabled={pending}>
+					Cancelar
+				</Button>
+				<Button
+					variant={variant}
+					onClick={confirm}
+					disabled={pending}
+					aria-busy={pending}
+				>
+					{pending ? "Procesando…" : label}
+				</Button>
+			</ModalActions>
+		</Modal>
+	);
+}

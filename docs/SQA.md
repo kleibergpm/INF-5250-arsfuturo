@@ -14,14 +14,16 @@
 ## Contexto del proyecto
 **ARS Futuro** es el sistema desarrollado por el equipo 4 para apoyar la gestión de una Administradora de Riesgos de Salud (ARS): registro de afiliados, gestión de autorizaciones y reclamaciones de servicios médicos, y consulta del estado de coberturas. El sistema maneja datos personales y de salud de los afiliados, así como información financiera asociada a reclamaciones, por lo que la confidencialidad e integridad de los datos son especialmente sensibles.
 
-* **Repositorio GitHub:** [kleibergpm/arsfuturo](https://github.com/kleibergpm/arsfuturo)
+* **Repositorio GitHub:** [kleibergpm/INF-5250-arsfuturo](https://github.com/kleibergpm/INF-5250-arsfuturo)
 * **Commit/tag de referencia (E2-A1):** `Release Version 1.1.0 - v0.1-E2-A1`
 * **Stack evaluado:**
   * **Backend:** Node.js + Express + TypeScript + Prisma + PostgreSQL
   * **Frontend:** React + Vite + Tailwind CSS
-* **Herramientas de análisis estático:**
+* **Herramientas del análisis histórico E2-A2:**
   * *Backend:* ESLint + typescript-eslint, eslint-plugin-security, eslint-plugin-sonarjs
   * *Frontend:* ESLint + typescript-eslint, eslint-plugin-react, eslint-plugin-react-hooks, eslint-plugin-jsx-a11y
+
+El checklist y sus hallazgos conservan la evidencia de ese entregable. La verificación vigente usa Biome, TypeScript y los [checks del README](../README.md#checks-y-contribuciones).
 
 ---
 
@@ -72,12 +74,12 @@ El equipo designa a **Kleiber Perez** como Responsable de Calidad (SQA Lead) par
 4. Todo campo de formulario (`<input>`, `<select>`, `<textarea>`) debe tener un `<label>` asociado vía `htmlFor/id` o `aria-label`.
 5. Todo elemento con `onClick` en no-interactivos debe soportar teclado (`onKeyDown`) o implementarse como `<button>`.
 6. Los hooks (`useEffect`, etc.) deben declarar su arreglo de dependencias completo y exacto.
-7. Todo hallazgo Alto o Crítico detectado por ESLint debe registrarse como ticket de Jira.
+7. Todo hallazgo Alto o Crítico del análisis estático debe registrarse como ticket de Jira.
 
 ---
 
 ## 5. Actividades de aseguramiento
-* **Análisis estático de código (SonarLint):** Antes de cada PR y entregable (`npm run lint`).
+* **Análisis estático:** Antes de cada PR y entregable, ejecuta `pnpm run check` y `pnpm run typecheck`.
 * **Revisión de código entre pares:** En cada PR de GitHub (mínimo 1 aprobación).
 * **Aplicación de checklist de calidad:** Sobre cada funcionalidad nueva o crítica.
 * **Revisión técnica formal cruzada:** Una vez por entregable con componente de verificación.

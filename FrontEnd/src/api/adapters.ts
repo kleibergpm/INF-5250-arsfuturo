@@ -6,7 +6,6 @@ export type Plan = {
 	copagoConsulta?: number;
 	cobertura: Record<string, boolean>;
 };
-export type AdaptedRecord = ApiRecord & { id: string; estado?: string };
 
 // --- Traducción de entrada: contrato en inglés del backend -> modelo interno en español ---
 // El backend (schema.prisma / routes/index.ts) usa nombres de modelo, campos y enums en
@@ -29,7 +28,7 @@ const insuredStatusLabels: Record<string, string> = {
 	INACTIVE: "Inactivo",
 };
 const authorizationStatusLabels: Record<string, string> = {
-	PENDING: "Pendiente",
+	PENDING: "En revisión",
 	APPROVED: "Aprobada",
 	REJECTED: "Rechazada",
 };
@@ -71,6 +70,7 @@ const displayInvoiceStatus = label(invoiceStatusLabels);
 const displayServiceStatus = label(serviceStatusLabels);
 const displayPaymentStatus = label(paymentStatusLabels);
 
+const text = (value: unknown) => (typeof value === "string" ? value : "");
 const id = (value: unknown) => String(value ?? "");
 // Los montos llegan como Decimal serializado (string) desde Prisma; sin este cast,
 // sumarlos en la UI concatena texto en vez de sumar números.
@@ -91,93 +91,119 @@ export const adaptPlan = (plan: ApiRecord): Plan => ({
 	cobertura: (plan.coverage || {}) as Record<string, boolean>,
 });
 
-export const adaptAfiliado = (item: ApiRecord): AdaptedRecord => ({
+export const adaptAfiliado = (item: ApiRecord) => ({
 	id: id(item.id),
-	nombre: item.name as string,
-	cedula: item.nationalId as string,
-	plan: (item.plan as ApiRecord | undefined)?.id || item.planId,
-	polizaId: (item.policy as ApiRecord | undefined)?.id || item.policyId,
+	nombre: text(item.name),
+	cedula: text(item.nationalId),
+	plan: id((item.plan as ApiRecord | undefined)?.id || item.planId),
+	polizaId: id((item.policy as ApiRecord | undefined)?.id || item.policyId),
 	estado: displayInsuredStatus(item.status),
-	desde: item.startDate,
-	nacimiento: item.birthDate || "",
-	telefono: item.phone,
-	correo: item.email,
-	dependientes: item.dependents,
+	desde: text(item.startDate),
+	nacimiento: text(item.birthDate),
+	telefono: text(item.phone),
+	correo: text(item.email),
+	dependientes: Number(item.dependents ?? 0),
 });
 
-export const adaptProveedor = (item: ApiRecord): AdaptedRecord => ({
+export const adaptProveedor = (item: ApiRecord) => ({
 	id: id(item.id),
-	nombre: item.name as string,
-	tipo: item.type,
-	ciudad: item.city,
-	telefono: item.phone,
+	nombre: text(item.name),
+	tipo: text(item.type),
+	ciudad: text(item.city),
+	telefono: text(item.phone),
 });
 
-export const adaptAutorizacion = (item: ApiRecord): AdaptedRecord => ({
+export const adaptAutorizacion = (item: ApiRecord) => ({
 	id: id(item.id),
-	afiliadoId: item.insuredId || (item.insured as ApiRecord | undefined)?.id,
-	proveedorId: item.providerId || (item.provider as ApiRecord | undefined)?.id,
-	procedimiento: item.procedure,
+	afiliadoId: id(item.insuredId || (item.insured as ApiRecord | undefined)?.id),
+	proveedorId: id(
+		item.providerId || (item.provider as ApiRecord | undefined)?.id,
+	),
+	proveedorNombre: text((item.provider as ApiRecord | undefined)?.name),
+	procedimiento: text(item.procedure),
 	copago: item.copay != null ? money(item.copay) : undefined,
 	estado: displayAuthorizationStatus(item.status),
-	fecha: item.date,
+	fecha: text(item.date),
 });
 
-export const adaptReclamo = (item: ApiRecord): AdaptedRecord => ({
+export const adaptReclamo = (item: ApiRecord) => ({
 	id: id(item.id),
-	afiliadoId: item.insuredId || (item.insured as ApiRecord | undefined)?.id,
-	proveedorId: item.providerId || (item.provider as ApiRecord | undefined)?.id,
+	afiliadoId: id(item.insuredId || (item.insured as ApiRecord | undefined)?.id),
+	proveedorId: id(
+		item.providerId || (item.provider as ApiRecord | undefined)?.id,
+	),
+	afiliadoNombre: text((item.insured as ApiRecord | undefined)?.name),
+	proveedorNombre: text((item.provider as ApiRecord | undefined)?.name),
 	monto: money(item.amount),
 	estado: displayClaimStatus(item.status),
-	fecha: item.date,
+	fecha: text(item.date),
 });
 
-export const adaptPoliza = (item: ApiRecord): AdaptedRecord => ({
+export const adaptPoliza = (item: ApiRecord) => ({
 	id: id(item.id),
-	empresa: item.company,
-	plan: (item.plan as ApiRecord | undefined)?.id || item.planId,
-	desde: item.startDate,
-	hasta: item.endDate,
+	empresa: text(item.company),
+	plan: id((item.plan as ApiRecord | undefined)?.id || item.planId),
+	desde: text(item.startDate),
+	hasta: text(item.endDate),
 	primaMensual: money(item.monthlyPremium),
-	asegurados: item.insuredCount,
+	asegurados: Number(item.insuredCount ?? 0),
 	estado: displayPolicyStatus(item.status),
 });
 
-export const adaptServicio = (item: ApiRecord): AdaptedRecord => ({
+export const adaptServicio = (item: ApiRecord) => ({
 	id: id(item.id),
-	afiliadoId: item.insuredId || (item.insured as ApiRecord | undefined)?.id,
-	proveedorId: item.providerId || (item.provider as ApiRecord | undefined)?.id,
-	autorizacionId: item.authorizationId,
-	descripcion: item.description,
+	afiliadoId: id(item.insuredId || (item.insured as ApiRecord | undefined)?.id),
+	proveedorId: id(
+		item.providerId || (item.provider as ApiRecord | undefined)?.id,
+	),
+	autorizacionId: text(item.authorizationId),
+	descripcion: text(item.description),
 	costo: money(item.cost),
 	copago: money(item.copay),
-	fecha: item.date,
+	fecha: text(item.date),
 	estado: displayServiceStatus(item.status),
+	elegiblePago: item.paymentEligible === true,
+	montoPagable: money(item.payableAmount),
+	estadoPago: item.paymentStatus
+		? displayPaymentStatus(item.paymentStatus)
+		: null,
 });
 
-export const adaptPago = (item: ApiRecord): AdaptedRecord => ({
+export const adaptPago = (item: ApiRecord) => ({
 	id: id(item.id),
-	proveedorId: item.providerId || (item.provider as ApiRecord | undefined)?.id,
-	servicioId: item.serviceId || (item.service as ApiRecord | undefined)?.id,
-	referenciaBanco: item.bankReference,
+	proveedorId: id(
+		item.providerId || (item.provider as ApiRecord | undefined)?.id,
+	),
+	servicioId: id(item.serviceId || (item.service as ApiRecord | undefined)?.id),
+	referenciaBanco: text(item.bankReference),
 	monto: money(item.amount),
-	metodo: item.method,
-	fecha: item.date,
+	metodo: text(item.method),
+	fecha: text(item.date),
 	estado: displayPaymentStatus(item.status),
 });
 
-export const adaptFactura = (item: ApiRecord): AdaptedRecord => ({
+export const adaptFactura = (item: ApiRecord) => ({
 	id: id(item.id),
-	polizaId: item.policyId || (item.policy as ApiRecord | undefined)?.id,
-	periodo: item.period,
-	emision: item.issuedAt,
-	vencimiento: item.dueDate,
+	polizaId: id((item.policy as ApiRecord | undefined)?.id || item.policyId),
+	periodo: text(item.period),
+	emision: text(item.issuedAt),
+	vencimiento: text(item.dueDate),
 	monto: money(item.amount),
 	estado: displayInvoiceStatus(item.status),
-	fechaPago: item.paidAt,
-	referencia: item.reference,
-	recordatorioEnviado: item.reminderSent,
+	fechaPago: text(item.paidAt),
+	referencia: text(item.reference),
+	recordatorioEnviado: item.reminderSent === true,
 });
+
+export type Afiliado = ReturnType<typeof adaptAfiliado>;
+export type Proveedor = ReturnType<typeof adaptProveedor>;
+export type Autorizacion = ReturnType<typeof adaptAutorizacion>;
+export type Reclamo = ReturnType<typeof adaptReclamo>;
+export type Poliza = ReturnType<typeof adaptPoliza>;
+export type Servicio = ReturnType<typeof adaptServicio>;
+export type Pago = ReturnType<typeof adaptPago>;
+export type Factura = ReturnType<typeof adaptFactura>;
+export type User = ReturnType<typeof adaptUser>;
 
 export const adaptCollection = <T>(
 	items: ApiRecord[],

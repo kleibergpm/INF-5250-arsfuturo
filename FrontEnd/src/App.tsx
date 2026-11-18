@@ -1,6 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
-	CheckCircle2,
 	FileDown,
 	FileText,
 	Filter,
@@ -9,31 +8,33 @@ import {
 	Mail,
 	Phone,
 	Plus,
-	RefreshCw,
-	Search,
 	Stethoscope,
 	User,
 	Users,
 	Wallet,
-	XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+	type FormEvent,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import {
 	Bar,
 	BarChart,
 	CartesianGrid,
-	Cell,
 	Legend,
 	Line,
 	LineChart,
-	Pie,
-	PieChart,
 	ResponsiveContainer,
 	Tooltip,
 	XAxis,
 	YAxis,
 } from "recharts";
 import {
+	type Afiliado,
+	type Autorizacion,
 	adaptAfiliado,
 	adaptAutorizacion,
 	adaptCollection,
@@ -45,6 +46,14 @@ import {
 	adaptReclamo,
 	adaptServicio,
 	adaptUser,
+	type Factura,
+	type Pago,
+	type Plan,
+	type Poliza,
+	type Proveedor,
+	type Reclamo,
+	type Servicio,
+	type User as SessionUser,
 	toAuthorizationPayload,
 	toClaimPayload,
 	toInsuredPayload,
@@ -53,58 +62,50 @@ import {
 	toServicePayload,
 } from "./api/adapters";
 import { authApi, mutationsApi, resourcesApi } from "./api/client";
+import { registrationFeedback } from "./api/registration-feedback";
 import { AppHeader, AppNavigation } from "./components/AppChrome";
 import {
 	Badge,
 	Button,
 	Card,
-	Divider,
 	Input,
-	Modal,
+	type Notification,
 	NotificationContainer,
-	Select,
 } from "./components/ui";
+import { AfiliadoActions, NuevoAfiliadoModal } from "./domains/afiliados";
+import { AutorizacionesTab } from "./domains/autorizaciones";
+import type {
+	AutorizacionInput,
+	EditarAfiliadoInput,
+	NotificationInput,
+	NuevoAfiliadoInput,
+	PagoInput,
+	PrimaInput,
+	ReclamoInput,
+	ServicioInput,
+} from "./domains/contracts";
+import { FacturacionTab } from "./domains/facturacion";
+import { PagosTab } from "./domains/pagos";
+import { PolizasTab } from "./domains/polizas";
+import { ProveedoresTab } from "./domains/proveedores";
+import { ReclamosTab } from "./domains/reclamos";
+import { ServiciosTab } from "./domains/servicios";
 import { currency, exportCsv, formatDate } from "./lib/formatters";
-
-type NotificationInput =
-	| string
-	| { id?: number; message: string; type?: string; title?: string };
-
-export type Tema = "claro" | "oscuro";
-
-export const TEMA_KEY = "arsfuturo_tema";
-
-// Recharts no hereda los tokens del tema: hay que darle tinta, rejilla,
-// series y tooltip explícitos para que no aparezcan los colores por defecto.
-const GRAFICA_OSCURO = {
-	eje: { fill: "#8ba3a3", fontSize: 12 },
-	linea: "#203338",
-	serie: "#2dd4bf",
-	sectores: ["#2dd4bf", "#f87171"],
-	tooltip: {
-		backgroundColor: "#16272b",
-		border: "1px solid #2a4247",
-		borderRadius: "0.75rem",
-		color: "#e8f1f0",
-	},
-};
-
-const graficaDe = (tema: Tema) => (tema === "oscuro" ? GRAFICA_OSCURO : null);
+import { graficaDe, TEMA_KEY, type Tema } from "./lib/theme";
 
 // La cobertura por procedimiento ahora la decide solo el backend (createAuthorization);
 // esto es un simple lookup de presentación, no una regla de negocio.
-const getPlanById = (plans, planId) =>
-	plans.find((p) => String(p.id) === String(planId)) || {
-		id: planId,
-		nombre: "Plan no disponible",
-	};
+const getPlanName = (plans: Plan[], planId: string) =>
+	plans.find((plan) => plan.id === planId)?.nombre ?? "Plan no disponible";
 
 export default function ARS_Futuro_App() {
-	const [tab, setTab] = useState("dashboard");
+	const [selectedTab, setTab] = useState("dashboard");
 
 	// Estados de autenticación
 	const [isAuthenticated, setIsAuthenticated] = useState(false);
-	const [currentUser, setCurrentUser] = useState(null);
+	const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
+	const isSupervisor = currentUser?.rol === "Supervisor";
+	const tab = isSupervisor ? "reclamos" : selectedTab;
 	const [loginForm, setLoginForm] = useState({ usuario: "", password: "" });
 	const [loginError, setLoginError] = useState("");
 	const [loginLoading, setLoginLoading] = useState(false);
@@ -115,22 +116,20 @@ export default function ARS_Futuro_App() {
 		nombre: "",
 		cedula: "",
 	});
-	const [ownAuthorizations, setOwnAuthorizations] = useState([]);
+	const [ownAuthorizations, setOwnAuthorizations] = useState<Autorizacion[]>(
+		[],
+	);
 	const [ownError, setOwnError] = useState("");
 
-	const [planes, setPlanes] = useState([]);
-	const [afiliados, setAfiliados] = useState([]);
-	const [autorizaciones, setAutorizaciones] = useState([]);
-	const [reclamaciones, setReclamaciones] = useState([]);
-	const [proveedores, setProveedores] = useState([]);
-	const [polizas, setPolizas] = useState([]);
-	const [servicios, setServicios] = useState([]);
-	const [pagos, setPagos] = useState([]);
-	const [facturas, setFacturas] = useState([]);
-
-	// Nota: no hay un input conectado a este filtro en la pestaña de afiliados hoy
-	// (setQ nunca se llama); se deja de solo lectura para no tocar comportamiento existente.
-	const [q] = useState("");
+	const [planes, setPlanes] = useState<Plan[]>([]);
+	const [afiliados, setAfiliados] = useState<Afiliado[]>([]);
+	const [autorizaciones, setAutorizaciones] = useState<Autorizacion[]>([]);
+	const [reclamaciones, setReclamaciones] = useState<Reclamo[]>([]);
+	const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+	const [polizas, setPolizas] = useState<Poliza[]>([]);
+	const [servicios, setServicios] = useState<Servicio[]>([]);
+	const [pagos, setPagos] = useState<Pago[]>([]);
+	const [facturas, setFacturas] = useState<Factura[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [openNuevoAfiliado, setOpenNuevoAfiliado] = useState(false);
 
@@ -154,7 +153,7 @@ export default function ARS_Futuro_App() {
 	const g = graficaDe(tema);
 
 	// Estado para notificaciones
-	const [notifications, setNotifications] = useState([]);
+	const [notifications, setNotifications] = useState<Notification[]>([]);
 
 	// Funciones para manejar notificaciones
 	const removeNotification = useCallback((id: number) => {
@@ -167,7 +166,7 @@ export default function ARS_Futuro_App() {
 				typeof notificationData === "object" && notificationData.id
 					? notificationData.id
 					: Date.now();
-			const base = { id, type: "success", timestamp: new Date() };
+			const base = { id, type: "success" };
 			const notification =
 				typeof notificationData === "string"
 					? { ...base, message: notificationData }
@@ -191,30 +190,40 @@ export default function ARS_Futuro_App() {
 	useEffect(() => {
 		const token = localStorage.getItem("arsfuturo_token");
 		if (!token) return;
+		let active = true;
 		authApi
 			.me()
 			.then((user) => {
+				if (!active || localStorage.getItem("arsfuturo_token") !== token)
+					return;
 				const authenticatedUser = adaptUser(user);
 				setCurrentUser(authenticatedUser);
 				setIsAuthenticated(true);
 			})
 			.catch(() => {
-				localStorage.removeItem("arsfuturo_token");
+				if (active && localStorage.getItem("arsfuturo_token") === token)
+					localStorage.removeItem("arsfuturo_token");
 			});
+		return () => {
+			active = false;
+		};
 	}, []);
 
 	useEffect(() => {
-		if (!isAuthenticated || currentUser?.rol === "Afiliado") return undefined;
+		if (!isAuthenticated || !currentUser || currentUser.rol === "Afiliado")
+			return;
+		let active = true;
 		setLoading(true);
 		const isAdmin = currentUser?.rol === "Administrador";
+		const isStaff = isAdmin || currentUser?.rol === "Agente";
 		Promise.all([
-			resourcesApi.planes(),
-			resourcesApi.afiliados(),
-			resourcesApi.autorizaciones(),
+			isStaff ? resourcesApi.planes() : Promise.resolve([]),
+			isStaff ? resourcesApi.afiliados() : Promise.resolve([]),
+			isStaff ? resourcesApi.autorizaciones() : Promise.resolve([]),
 			resourcesApi.reclamos(),
-			resourcesApi.proveedores(),
+			isStaff ? resourcesApi.proveedores() : Promise.resolve([]),
 			isAdmin ? resourcesApi.polizas() : Promise.resolve([]),
-			resourcesApi.servicios(),
+			isStaff ? resourcesApi.servicios() : Promise.resolve([]),
 			isAdmin ? resourcesApi.pagos() : Promise.resolve([]),
 			isAdmin ? resourcesApi.facturas() : Promise.resolve([]),
 		])
@@ -230,6 +239,7 @@ export default function ARS_Futuro_App() {
 					pagosData,
 					facturasData,
 				]) => {
+					if (!active) return;
 					setPlanes(adaptCollection(planes, adaptPlan));
 					setAfiliados(adaptCollection(afiliadosData, adaptAfiliado));
 					setAutorizaciones(
@@ -244,41 +254,45 @@ export default function ARS_Futuro_App() {
 				},
 			)
 			.catch(() => {
+				if (!active) return;
 				addNotification({
 					type: "error",
 					title: "Error de conexión",
 					message: "No fue posible cargar los datos del backend.",
 				});
 			})
-			.finally(() => setLoading(false));
-	}, [isAuthenticated, currentUser?.rol, addNotification]);
+			.finally(() => {
+				if (active) setLoading(false);
+			});
+		return () => {
+			active = false;
+		};
+	}, [isAuthenticated, currentUser, addNotification]);
 
 	const loadOwnAuthorizations = useCallback(async () => {
 		if (!isAuthenticated || currentUser?.rol !== "Afiliado") return;
+		const token = localStorage.getItem("arsfuturo_token");
 		setLoading(true);
 		setOwnError("");
 		try {
-			setOwnAuthorizations(await resourcesApi.misAutorizaciones());
+			const rows = await resourcesApi.misAutorizaciones();
+			if (localStorage.getItem("arsfuturo_token") === token)
+				setOwnAuthorizations(adaptCollection(rows, adaptAutorizacion));
 		} catch (error) {
+			const currentToken = localStorage.getItem("arsfuturo_token");
+			if (currentToken && currentToken !== token) return;
 			setOwnError(
 				error.response?.data?.message ||
 					"No fue posible consultar tus autorizaciones",
 			);
 		} finally {
-			setLoading(false);
+			const currentToken = localStorage.getItem("arsfuturo_token");
+			if (!currentToken || currentToken === token) setLoading(false);
 		}
-	}, [isAuthenticated, currentUser?.rol]);
+	}, [isAuthenticated, currentUser]);
 	useEffect(() => {
 		loadOwnAuthorizations();
 	}, [loadOwnAuthorizations]);
-
-	const afiliadosFiltrados = useMemo(() => {
-		return afiliados.filter(
-			(a) =>
-				a.nombre.toLowerCase().includes(q.toLowerCase()) ||
-				a.cedula.includes(q),
-		);
-	}, [afiliados, q]);
 
 	const kpis = useMemo(() => {
 		const activos = afiliados.filter((a) => a.estado === "Activo").length;
@@ -338,36 +352,52 @@ export default function ARS_Futuro_App() {
 		return porPlan;
 	}, [autorizaciones, afiliados, planes]);
 
-	const aprobarAut = async (id) => {
-		// Solo administradores y supervisores pueden aprobar autorizaciones
+	const decidirAutorizacion = async (
+		id: string,
+		accion: "aprobar" | "rechazar",
+	) => {
 		if (
 			!currentUser ||
 			!["Administrador", "Supervisor"].includes(currentUser.rol)
 		) {
-			alert("No tienes permisos para aprobar autorizaciones");
+			addNotification({
+				type: "error",
+				title: "Acción no permitida",
+				message: `No tienes permisos para ${accion} autorizaciones.`,
+			});
 			return;
 		}
-		await mutationsApi.aprobarAutorizacion(id);
-		setAutorizaciones((prev) =>
-			prev.map((a) => (a.id === id ? { ...a, estado: "Aprobada" } : a)),
-		);
-	};
-	const rechazarAut = async (id) => {
-		// Solo administradores y supervisores pueden rechazar autorizaciones
-		if (
-			!currentUser ||
-			!["Administrador", "Supervisor"].includes(currentUser.rol)
-		) {
-			alert("No tienes permisos para rechazar autorizaciones");
-			return;
+		const rechazar = accion === "rechazar";
+		try {
+			const { estado } = adaptAutorizacion(
+				await (rechazar
+					? mutationsApi.rechazarAutorizacion
+					: mutationsApi.aprobarAutorizacion)(id),
+			);
+			setAutorizaciones((prev) =>
+				prev.map((a) => (a.id === id ? { ...a, estado } : a)),
+			);
+			addNotification({
+				type: "success",
+				title: rechazar ? "Autorización rechazada" : "Autorización aprobada",
+				message: "Se guardó la decisión.",
+			});
+		} catch (error) {
+			addNotification({
+				type: "error",
+				title: `Error al ${accion} la autorización`,
+				message:
+					error.response?.data?.message ||
+					`No fue posible ${accion} la autorización.`,
+			});
 		}
-		await mutationsApi.rechazarAutorizacion(id);
-		setAutorizaciones((prev) =>
-			prev.map((a) => (a.id === id ? { ...a, estado: "Rechazada" } : a)),
-		);
 	};
 
-	const registrarReclamo = async ({ afiliadoId, proveedorId, monto }) => {
+	const registrarReclamo = async ({
+		afiliadoId,
+		proveedorId,
+		monto,
+	}: ReclamoInput) => {
 		const nuevo = adaptReclamo(
 			await mutationsApi.reclamo(
 				toClaimPayload({ afiliadoId, proveedorId, monto: Number(monto) }),
@@ -376,11 +406,35 @@ export default function ARS_Futuro_App() {
 		setReclamaciones((prev) => [nuevo, ...prev]);
 	};
 
+	const decidirReclamo = async (id: string, accion: "aprobar" | "rechazar") => {
+		try {
+			const { estado } = adaptReclamo(
+				await mutationsApi.decidirReclamo(id, accion),
+			);
+			setReclamaciones((prev) =>
+				prev.map((reclamo) =>
+					reclamo.id === id ? { ...reclamo, estado } : reclamo,
+				),
+			);
+			addNotification({
+				type: "success",
+				title: accion === "aprobar" ? "Reclamo aprobado" : "Reclamo rechazado",
+				message: "Se guardó la decisión.",
+			});
+		} catch (error) {
+			addNotification({
+				type: "error",
+				title: "No se pudo procesar el reclamo",
+				message: error.response?.data?.message || "Intenta de nuevo.",
+			});
+		}
+	};
+
 	const crearAutorizacion = async ({
 		afiliadoId,
 		proveedorId,
 		procedimiento,
-	}) => {
+	}: AutorizacionInput) => {
 		const af = afiliados.find((a) => String(a.id) === String(afiliadoId));
 
 		if (!af) return null;
@@ -395,15 +449,8 @@ export default function ARS_Futuro_App() {
 			),
 		);
 
-		// Toda autorización nueva comienza como Pendiente
-		const nuevaPendiente = {
-			...nueva,
-			estado: "Pendiente",
-		};
-
-		setAutorizaciones((prev) => [nuevaPendiente, ...prev]);
-
-		return nuevaPendiente;
+		setAutorizaciones((prev) => [nueva, ...prev]);
+		return nueva;
 	};
 
 	// Registrar Servicio Médico (CU07)
@@ -413,7 +460,7 @@ export default function ARS_Futuro_App() {
 		descripcion,
 		costo,
 		autorizacionId,
-	}) => {
+	}: ServicioInput) => {
 		const nuevo = adaptServicio(
 			await mutationsApi.servicio(
 				toServicePayload({
@@ -435,7 +482,7 @@ export default function ARS_Futuro_App() {
 		monto,
 		referenciaBanco,
 		metodo = "Transferencia",
-	}) => {
+	}: PagoInput) => {
 		if (currentUser?.rol !== "Administrador") {
 			alert("No tienes permisos para emitir pagos");
 			return null;
@@ -445,10 +492,17 @@ export default function ARS_Futuro_App() {
 				toPaymentPayload({ servicioId, monto, referenciaBanco, metodo }),
 			),
 		);
-		setPagos((prev) => [nuevo, ...prev]);
+		setPagos((prev) => [nuevo, ...prev.filter((p) => p.id !== nuevo.id)]);
 		setServicios((prev) =>
 			prev.map((s) =>
-				String(s.id) === String(servicioId) ? { ...s, estado: "Pagado" } : s,
+				s.id === nuevo.servicioId
+					? {
+							...s,
+							estado: "Pagado",
+							estadoPago: nuevo.estado,
+							elegiblePago: false,
+						}
+					: s,
 			),
 		);
 		return nuevo;
@@ -465,7 +519,7 @@ export default function ARS_Futuro_App() {
 		telefono,
 		correo,
 		dependientes = 0,
-	}) => {
+	}: NuevoAfiliadoInput) => {
 		const nuevo = adaptAfiliado(
 			await mutationsApi.afiliado(
 				toInsuredPayload({
@@ -491,7 +545,10 @@ export default function ARS_Futuro_App() {
 	};
 
 	// Actualizar datos de afiliado (CU10)
-	const actualizarAfiliado = async (id, { telefono, correo }) => {
+	const actualizarAfiliado = async (
+		id: string,
+		{ telefono, correo }: EditarAfiliadoInput,
+	) => {
 		const actualizado = adaptAfiliado(
 			await mutationsApi.actualizarAfiliado(
 				id,
@@ -503,42 +560,49 @@ export default function ARS_Futuro_App() {
 
 	// Facturación de pólizas (Pago de Prima Mensual)
 	const generarFacturasMes = async () => {
-		const periodo = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
-		const yaExisten = facturas.some((f) => f.periodo === periodo);
-		if (yaExisten) {
-			addNotification({
-				id: Date.now(),
-				type: "info",
-				title: "Facturación",
-				message: `Las facturas del periodo ${periodo} ya existen.`,
-			});
-			return [];
-		}
-		const nuevas = (await mutationsApi.generarFacturas(periodo)).map(
-			adaptFactura,
-		);
-		setFacturas((prev) => [...nuevas, ...prev]);
+		const delPeriodo = (await mutationsApi.generarFacturas()).map(adaptFactura);
+		const ids = new Set(delPeriodo.map((f) => f.id));
+		setFacturas((prev) => [
+			...delPeriodo,
+			...prev.filter((f) => !ids.has(f.id)),
+		]);
 		addNotification({
-			id: Date.now(),
-			type: "success",
-			title: "Facturas generadas",
-			message: `Se generaron facturas del periodo ${periodo} para ${nuevas.length} pólizas.`,
+			type: "info",
+			title: "Facturación del mes",
+			message: delPeriodo.length
+				? `${delPeriodo.length} facturas para ${delPeriodo[0].periodo}.`
+				: "No hay pólizas elegibles para el período.",
 		});
-		return nuevas;
 	};
 
-	const enviarRecordatorioFactura = async (id) => {
+	const enviarRecordatorioFactura = async (id: string) => {
 		const actualizada = adaptFactura(await mutationsApi.recordarFactura(id));
 		setFacturas((prev) => prev.map((f) => (f.id === id ? actualizada : f)));
 		addNotification({
 			id: Date.now(),
 			type: "info",
-			title: "Recordatorio enviado",
-			message: "Se envió recordatorio de pago al asegurado.",
+			title: "Recordatorio registrado",
+			message: "Se actualizó el indicador de recordatorio de la factura.",
 		});
 	};
 
-	const registrarPagoPrima = async ({ facturaId, referencia }) => {
+	const refrescarPoliza = async (id: string) => {
+		try {
+			const actualizada = adaptPoliza(await resourcesApi.poliza(id));
+			setPolizas((prev) => prev.map((p) => (p.id === id ? actualizada : p)));
+			return actualizada;
+		} catch {
+			addNotification({
+				type: "warning",
+				title: "Estado de póliza sin actualizar",
+				message:
+					"Vuelve a cargar la página para consultar el estado confirmado.",
+			});
+			return null;
+		}
+	};
+
+	const registrarPagoPrima = async ({ facturaId, referencia }: PrimaInput) => {
 		const factura = facturas.find((f) => f.id === facturaId);
 		if (!factura) return null;
 		const actualizada = adaptFactura(
@@ -547,21 +611,19 @@ export default function ARS_Futuro_App() {
 		setFacturas((prev) =>
 			prev.map((f) => (f.id === facturaId ? actualizada : f)),
 		);
-		setPolizas((prev) =>
-			prev.map((p) =>
-				p.id === factura.polizaId ? { ...p, estado: "Vigente" } : p,
-			),
-		);
+		const poliza = await refrescarPoliza(factura.polizaId);
 		addNotification({
 			id: Date.now(),
 			type: "success",
 			title: "Pago de prima registrado",
-			message: `La póliza ${factura.polizaId} quedó vigente.`,
+			message: poliza
+				? `Estado de la póliza ${poliza.id}: ${poliza.estado}.`
+				: "El pago quedó registrado.",
 		});
 		return actualizada;
 	};
 
-	const marcarPeriodoGracia = async (facturaId) => {
+	const marcarPeriodoGracia = async (facturaId: string) => {
 		const factura = facturas.find((f) => f.id === facturaId);
 		if (!factura) return;
 		const actualizada = adaptFactura(
@@ -570,36 +632,33 @@ export default function ARS_Futuro_App() {
 		setFacturas((prev) =>
 			prev.map((f) => (f.id === facturaId ? actualizada : f)),
 		);
-		setPolizas((prev) =>
-			prev.map((p) =>
-				p.id === factura.polizaId
-					? { ...p, estado: "En periodo de gracia" }
-					: p,
-			),
-		);
+		const poliza = await refrescarPoliza(factura.polizaId);
 		addNotification({
 			id: Date.now(),
 			type: "warning",
-			title: "Periodo de gracia",
-			message: `La póliza ${factura.polizaId} está en periodo de gracia.`,
+			title: "Periodo de gracia registrado en la factura",
+			message: poliza
+				? `Estado de la póliza ${poliza.id}: ${poliza.estado}.`
+				: "",
 		});
 	};
 
-	const suspenderPolizaPorFactura = async (facturaId) => {
+	const suspenderPolizaPorFactura = async (facturaId: string) => {
 		const factura = facturas.find((f) => f.id === facturaId);
 		if (!factura) return;
 		await mutationsApi.suspenderFactura(facturaId);
-		setPolizas((prev) =>
-			prev.map((p) =>
-				p.id === factura.polizaId ? { ...p, estado: "Suspendida" } : p,
-			),
-		);
-		addNotification({
-			id: Date.now(),
-			type: "error",
-			title: "Póliza suspendida",
-			message: `Se suspendió la póliza ${factura.polizaId} por falta de pago.`,
-		});
+		const [poliza, actuales] = await Promise.all([
+			refrescarPoliza(factura.polizaId),
+			resourcesApi.facturas(),
+		]);
+		setFacturas(adaptCollection(actuales, adaptFactura));
+		if (poliza) {
+			addNotification({
+				type: "info",
+				title: "Estado de la póliza",
+				message: `La póliza ${poliza.id} figura como ${poliza.estado}.`,
+			});
+		}
 	};
 
 	const clearSessionData = () => {
@@ -615,7 +674,7 @@ export default function ARS_Futuro_App() {
 	};
 
 	// Funciones de autenticación
-	const handleLogin = async (e) => {
+	const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		setLoginError("");
 		setLoginLoading(true);
@@ -641,7 +700,7 @@ export default function ARS_Futuro_App() {
 		}
 	};
 
-	const handleRegister = async (event) => {
+	const handleRegister = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		setLoginError("");
 		setLoginLoading(true);
@@ -650,12 +709,20 @@ export default function ARS_Futuro_App() {
 			setLoginForm({ usuario: registerForm.usuario, password: "" });
 			setRegisterForm({ usuario: "", password: "", nombre: "", cedula: "" });
 			setRegistering(false);
-			alert("Registro completado. Ya puedes iniciar sesión.");
+			addNotification({
+				type: "success",
+				title: "Registro completado",
+				message: "Ya puedes iniciar sesión con tu usuario.",
+			});
 		} catch (error) {
-			const message =
-				error.response?.data?.message || "No fue posible completar el registro";
-			setLoginError(message);
-			if (error.response?.status === 400) alert("La cédula no es válida");
+			addNotification({
+				type: "error",
+				title: "No se pudo completar el registro",
+				message: registrationFeedback(
+					error,
+					"Revisa los datos e inténtalo de nuevo.",
+				),
+			});
 		} finally {
 			setLoginLoading(false);
 		}
@@ -676,6 +743,10 @@ export default function ARS_Futuro_App() {
 	if (!isAuthenticated) {
 		return (
 			<div className="app-shell min-h-screen w-full px-4 flex items-center justify-center">
+				<NotificationContainer
+					notifications={notifications}
+					onRemove={removeNotification}
+				/>
 				<Card className="w-full max-w-md !border-[var(--border)] !bg-[var(--surface-solid)]/90 p-7 sm:p-9">
 					<div className="text-center mb-8">
 						<div className="mx-auto mb-5 grid h-16 w-16 place-items-center overflow-hidden rounded-2xl bg-[var(--accent)] shadow-[0_12px_24px_var(--accent-glow)]">
@@ -696,40 +767,42 @@ export default function ARS_Futuro_App() {
 					{registering ? (
 						<form onSubmit={handleRegister} className="space-y-4">
 							<h2 className="text-xl font-semibold">Registro de afiliado</h2>
-							{[
-								{
-									key: "nombre",
-									label: "Nombre completo",
-									type: "text",
-									min: 2,
-									max: 120,
-									autocomplete: "name",
-								},
-								{
-									key: "cedula",
-									label: "Cédula",
-									type: "text",
-									min: 11,
-									max: 13,
-									autocomplete: "off",
-								},
-								{
-									key: "usuario",
-									label: "Usuario",
-									type: "text",
-									min: 3,
-									max: 120,
-									autocomplete: "username",
-								},
-								{
-									key: "password",
-									label: "Contraseña",
-									type: "password",
-									min: 6,
-									max: 72,
-									autocomplete: "new-password",
-								},
-							].map((field) => (
+							{(
+								[
+									{
+										key: "nombre",
+										label: "Nombre completo",
+										type: "text",
+										min: 2,
+										max: 120,
+										autocomplete: "name",
+									},
+									{
+										key: "cedula",
+										label: "Cédula",
+										type: "text",
+										min: 11,
+										max: 13,
+										autocomplete: "off",
+									},
+									{
+										key: "usuario",
+										label: "Usuario",
+										type: "text",
+										min: 3,
+										max: 120,
+										autocomplete: "username",
+									},
+									{
+										key: "password",
+										label: "Contraseña",
+										type: "password",
+										min: 6,
+										max: 72,
+										autocomplete: "new-password",
+									},
+								] as const
+							).map((field) => (
 								<div key={field.key}>
 									<label
 										htmlFor={`registro-${field.key}`}
@@ -779,6 +852,7 @@ export default function ARS_Futuro_App() {
 									<User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
 									<Input
 										id="login-usuario"
+										autoComplete="username"
 										value={loginForm.usuario}
 										onChange={(value) =>
 											setLoginForm((prev) => ({ ...prev, usuario: value }))
@@ -801,6 +875,7 @@ export default function ARS_Futuro_App() {
 									<Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
 									<Input
 										id="login-contrasena"
+										autoComplete="current-password"
 										type="password"
 										value={loginForm.password}
 										onChange={(value) =>
@@ -814,7 +889,10 @@ export default function ARS_Futuro_App() {
 							</div>
 
 							{loginError && (
-								<div className="rounded-xl border tone-error p-3 text-center text-sm">
+								<div
+									role="alert"
+									className="rounded-xl border tone-error p-3 text-center text-sm"
+								>
 									{loginError}
 								</div>
 							)}
@@ -881,11 +959,11 @@ export default function ARS_Futuro_App() {
 						<div className="grid gap-4 my-4">
 							{ownAuthorizations.map((item) => (
 								<Card key={item.id} className="p-4">
-									<h2 className="font-semibold">{item.procedure}</h2>
-									<p>Prestador: {item.provider?.name}</p>
-									<p>Fecha: {formatDate(item.date)}</p>
-									<p>Estado: {adaptAutorizacion(item).estado}</p>
-									<p>Copago: {currency(Number(item.copay))}</p>
+									<h2 className="font-semibold">{item.procedimiento}</h2>
+									<p>Prestador: {item.proveedorNombre}</p>
+									<p>Fecha: {formatDate(item.fecha)}</p>
+									<p>Estado: {item.estado}</p>
+									<p>Copago: {currency(item.copago ?? 0)}</p>
 								</Card>
 							))}
 						</div>
@@ -909,6 +987,7 @@ export default function ARS_Futuro_App() {
 					tab={tab}
 					setTab={setTab}
 					isAdmin={currentUser?.rol === "Administrador"}
+					isSupervisor={isSupervisor}
 				/>
 
 				<div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -1051,7 +1130,7 @@ export default function ARS_Futuro_App() {
 										<div className="flex items-center gap-2">
 											<Filter className="w-4 h-4 text-[var(--text-faint)]" />
 											<span className="text-sm text-[var(--text-body)]">
-												{afiliadosFiltrados.length} resultado(s)
+												{afiliados.length} resultado(s)
 											</span>
 										</div>
 										<div className="flex items-center gap-2">
@@ -1066,7 +1145,7 @@ export default function ARS_Futuro_App() {
 												variant="ghost"
 												className="flex items-center justify-center pt-1"
 												onClick={() =>
-													exportCsv("afiliados.csv", [
+													exportCsv("Afiliados", [
 														[
 															"ID",
 															"Nombre",
@@ -1079,7 +1158,7 @@ export default function ARS_Futuro_App() {
 															"Correo",
 															"Dependientes",
 														],
-														...afiliadosFiltrados.map((a) => [
+														...afiliados.map((a) => [
 															a.id,
 															a.nombre,
 															a.cedula,
@@ -1104,7 +1183,6 @@ export default function ARS_Futuro_App() {
 										onClose={() => setOpenNuevoAfiliado(false)}
 										planes={planes}
 										crearAfiliado={crearAfiliado}
-										addNotification={addNotification}
 									/>
 									<div className="overflow-x-auto">
 										<table className="data-table w-full text-sm min-w-[800px]">
@@ -1120,14 +1198,14 @@ export default function ARS_Futuro_App() {
 												</tr>
 											</thead>
 											<tbody>
-												{afiliadosFiltrados.map((a) => (
+												{afiliados.map((a) => (
 													<tr key={a.id} className="border-b last:border-0">
 														<td className="py-2 pr-2 font-medium">
 															{a.nombre}
 														</td>
 														<td className="py-2 pr-2">{a.cedula}</td>
 														<td className="py-2 pr-2">
-															{getPlanById(planes, a.plan).nombre}
+															{getPlanName(planes, a.plan)}
 														</td>
 														<td className="py-2 pr-2">
 															<Badge
@@ -1176,8 +1254,9 @@ export default function ARS_Futuro_App() {
 								autorizaciones={autorizaciones}
 								afiliados={afiliados}
 								proveedores={proveedores}
-								aprobarAut={aprobarAut}
-								rechazarAut={rechazarAut}
+								aprobarAut={(id) => decidirAutorizacion(id, "aprobar")}
+								rechazarAut={(id) => decidirAutorizacion(id, "rechazar")}
+								puedeDecidir={currentUser?.rol === "Administrador"}
 								crearAutorizacion={crearAutorizacion}
 								addNotification={addNotification}
 							/>
@@ -1190,6 +1269,9 @@ export default function ARS_Futuro_App() {
 								afiliados={afiliados}
 								proveedores={proveedores}
 								onRegistrar={registrarReclamo}
+								onDecidir={decidirReclamo}
+								canRegister={!isSupervisor}
+								canDecide={isSupervisor || currentUser?.rol === "Administrador"}
 								addNotification={addNotification}
 								tema={tema}
 							/>
@@ -1236,6 +1318,7 @@ export default function ARS_Futuro_App() {
 								onRegistrarPago={registrarPagoPrima}
 								onGracia={marcarPeriodoGracia}
 								onSuspender={suspenderPolizaPorFactura}
+								addNotification={addNotification}
 							/>
 						)}
 					</AnimatePresence>
@@ -1265,1983 +1348,5 @@ export default function ARS_Futuro_App() {
 				onRemove={removeNotification}
 			/>
 		</div>
-	);
-}
-
-function AfiliadoActions({
-	afiliado,
-	afiliados,
-	proveedores,
-	crearAutorizacion,
-	addNotification,
-	onEditarAfiliado,
-}) {
-	const [open, setOpen] = useState(false);
-	const [openEdit, setOpenEdit] = useState(false);
-	return (
-		<div className="flex items-center gap-2">
-			<Button
-				variant="primary"
-				size="sm"
-				className="flex items-center justify-center"
-				onClick={() => setOpen(true)}
-			>
-				<Plus className="w-4 h-4 mr-1" /> Nueva autorización
-			</Button>
-			<Button
-				variant="ghost"
-				size="sm"
-				className="flex items-center justify-center"
-				onClick={() => setOpenEdit(true)}
-			>
-				<User className="w-4 h-4 mr-1" /> Editar
-			</Button>
-			<NuevaAutorizacionModal
-				open={open}
-				onClose={() => setOpen(false)}
-				afiliadoDefault={afiliado}
-				afiliados={afiliados}
-				proveedores={proveedores}
-				crearAutorizacion={crearAutorizacion}
-				addNotification={addNotification}
-			/>
-			<EditarAfiliadoModal
-				open={openEdit}
-				onClose={() => setOpenEdit(false)}
-				afiliado={afiliado}
-				onGuardar={onEditarAfiliado}
-				addNotification={addNotification}
-			/>
-		</div>
-	);
-}
-
-function NuevaAutorizacionModal({
-	open,
-	onClose,
-	afiliadoDefault = null,
-	afiliados = [],
-	proveedores = [],
-	crearAutorizacion,
-	addNotification,
-}) {
-	const [afiliadoId, setAfiliadoId] = useState(
-		afiliadoDefault?.id ? String(afiliadoDefault.id) : "",
-	);
-	const [proveedorId, setProveedorId] = useState(
-		proveedores[0]?.id ? String(proveedores[0].id) : "",
-	);
-	const [procedimiento, setProcedimiento] = useState("Consulta general");
-
-	useEffect(() => {
-		setAfiliadoId(afiliadoDefault?.id ? String(afiliadoDefault.id) : "");
-	}, [afiliadoDefault]);
-
-	const afiliadosAll = afiliados;
-	const proveedoresAll = proveedores;
-
-	const crear = async () => {
-		if (!afiliadoId || !proveedorId || !procedimiento) return;
-		const nueva = await crearAutorizacion({
-			afiliadoId,
-			proveedorId,
-			procedimiento,
-		});
-		if (!nueva) return;
-		onClose?.();
-
-		// Usar el sistema de notificaciones en lugar de alert
-		setTimeout(() => {
-			addNotification({
-				type:
-					nueva.estado === "Aprobada"
-						? "success"
-						: nueva.estado === "Rechazada"
-							? "error"
-							: "info",
-				title: "Autorización Creada",
-				message: `Autorización #${nueva.id} creada: ${nueva.estado}`,
-			});
-		}, 50);
-	};
-
-	return (
-		<Modal open={open} onClose={onClose} title="Nueva autorización">
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-				<div>
-					<label
-						className="text-xs text-[var(--text-body)]"
-						htmlFor="nueva-autorizacion-afiliado"
-					>
-						Afiliado
-					</label>
-					<Select
-						id="nueva-autorizacion-afiliado"
-						value={afiliadoId}
-						onChange={setAfiliadoId}
-					>
-						<option value="">Seleccione…</option>
-						{afiliadosAll.map((a) => (
-							<option key={a.id} value={a.id}>
-								{a.nombre} — {a.cedula}
-							</option>
-						))}
-					</Select>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-body)]"
-						htmlFor="nueva-autorizacion-proveedor"
-					>
-						Proveedor
-					</label>
-					<Select
-						id="nueva-autorizacion-proveedor"
-						value={proveedorId}
-						onChange={setProveedorId}
-					>
-						{proveedoresAll.map((p) => (
-							<option key={p.id} value={p.id}>
-								{p.nombre}
-							</option>
-						))}
-					</Select>
-				</div>
-				<div className="md:col-span-2">
-					<label
-						className="text-xs text-[var(--text-body)]"
-						htmlFor="nueva-autorizacion-procedimiento"
-					>
-						Procedimiento
-					</label>
-					<Input
-						id="nueva-autorizacion-procedimiento"
-						value={procedimiento}
-						onChange={setProcedimiento}
-						placeholder="Ej.: Consulta general / Perfil Lipídico / Rayos X…"
-					/>
-				</div>
-			</div>
-			<div className="mt-4 flex justify-end gap-2">
-				<Button variant="ghost" onClick={onClose}>
-					Cancelar
-				</Button>
-				<Button
-					variant="success"
-					className="flex items-center justify-center"
-					onClick={crear}
-				>
-					<CheckCircle2 className="w-4 h-4 mr-1" />
-					Crear autorización
-				</Button>
-			</div>
-		</Modal>
-	);
-}
-
-function EditarAfiliadoModal({
-	open,
-	onClose,
-	afiliado,
-	onGuardar,
-	addNotification,
-}) {
-	const [telefono, setTelefono] = useState(afiliado?.telefono || "");
-	const [correo, setCorreo] = useState(afiliado?.correo || "");
-
-	useEffect(() => {
-		setTelefono(afiliado?.telefono || "");
-		setCorreo(afiliado?.correo || "");
-	}, [afiliado]);
-
-	const guardar = async () => {
-		await onGuardar?.(afiliado.id, { telefono, correo });
-		addNotification({
-			id: Date.now(),
-			type: "success",
-			title: "Afiliado actualizado",
-			message: `Se guardaron los cambios de ${afiliado.nombre}.`,
-		});
-		onClose();
-	};
-
-	return (
-		<Modal open={open} onClose={onClose} title={`Editar afiliado`}>
-			<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-				<div>
-					<label
-						className="text-xs text-[var(--text-muted)]"
-						htmlFor="editar-afiliado-telefono"
-					>
-						Teléfono
-					</label>
-					<Input
-						id="editar-afiliado-telefono"
-						value={telefono}
-						onChange={setTelefono}
-						placeholder="Ej. +1 809 555 0000"
-					/>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-muted)]"
-						htmlFor="editar-afiliado-correo"
-					>
-						Correo
-					</label>
-					<Input
-						id="editar-afiliado-correo"
-						value={correo}
-						onChange={setCorreo}
-						placeholder="correo@ejemplo.do"
-					/>
-				</div>
-			</div>
-			<Divider />
-			<div className="flex justify-end gap-2">
-				<Button variant="ghost" onClick={onClose}>
-					Cancelar
-				</Button>
-				<Button variant="primary" onClick={guardar}>
-					Guardar cambios
-				</Button>
-			</div>
-		</Modal>
-	);
-}
-
-function NuevoAfiliadoModal({
-	open,
-	onClose,
-	planes = [],
-	crearAfiliado,
-	addNotification,
-}) {
-	const [nombre, setNombre] = useState("");
-	const [cedula, setCedula] = useState("");
-	const [plan, setPlan] = useState("BASICO");
-	const [estado, setEstado] = useState("Activo");
-	const [desde, setDesde] = useState(new Date().toISOString().slice(0, 10));
-	const [nacimiento, setNacimiento] = useState("");
-	const [telefono, setTelefono] = useState("");
-	const [correo, setCorreo] = useState("");
-	const [dependientes, setDependientes] = useState(0);
-
-	const limpiar = () => {
-		setNombre("");
-		setCedula("");
-		setPlan("BASICO");
-		setEstado("Activo");
-		setDesde(new Date().toISOString().slice(0, 10));
-		setNacimiento("");
-		setTelefono("");
-		setCorreo("");
-		setDependientes(0);
-	};
-
-	const crear = async () => {
-		if (!nombre || !cedula || !plan) return;
-		const nuevo = await crearAfiliado({
-			nombre,
-			cedula,
-			plan,
-			estado,
-			desde,
-			nacimiento,
-			telefono,
-			correo,
-			dependientes,
-		});
-		if (!nuevo) return;
-		onClose?.();
-		setTimeout(() => {
-			addNotification({
-				type: "success",
-				title: "Afiliado creado",
-				message: `${nuevo.nombre} agregado con ID ${nuevo.id}.`,
-			});
-		}, 50);
-		limpiar();
-	};
-
-	return (
-		<Modal open={open} onClose={onClose} title="Nuevo afiliado">
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-				<div>
-					<label
-						className="text-xs text-[var(--text-body)]"
-						htmlFor="nuevo-afiliado-nombre-completo"
-					>
-						Nombre completo
-					</label>
-					<Input
-						id="nuevo-afiliado-nombre-completo"
-						value={nombre}
-						onChange={setNombre}
-						placeholder="Ej.: Juan Pérez"
-					/>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-body)]"
-						htmlFor="nuevo-afiliado-cedula"
-					>
-						Cédula
-					</label>
-					<Input
-						id="nuevo-afiliado-cedula"
-						value={cedula}
-						onChange={setCedula}
-						placeholder="001-1234567-8"
-					/>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-body)]"
-						htmlFor="nuevo-afiliado-plan"
-					>
-						Plan
-					</label>
-					<Select id="nuevo-afiliado-plan" value={plan} onChange={setPlan}>
-						{planes.map((p) => (
-							<option key={p.id} value={p.id}>
-								{p.nombre}
-							</option>
-						))}
-					</Select>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-body)]"
-						htmlFor="nuevo-afiliado-estado"
-					>
-						Estado
-					</label>
-					<Select
-						id="nuevo-afiliado-estado"
-						value={estado}
-						onChange={setEstado}
-					>
-						<option value="Activo">Activo</option>
-						<option value="Suspendido">Suspendido</option>
-					</Select>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-body)]"
-						htmlFor="nuevo-afiliado-desde"
-					>
-						Desde
-					</label>
-					<Input
-						id="nuevo-afiliado-desde"
-						value={desde}
-						onChange={setDesde}
-						placeholder="YYYY-MM-DD"
-					/>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-body)]"
-						htmlFor="nuevo-afiliado-nacimiento"
-					>
-						Nacimiento
-					</label>
-					<Input
-						id="nuevo-afiliado-nacimiento"
-						value={nacimiento}
-						onChange={setNacimiento}
-						placeholder="YYYY-MM-DD"
-					/>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-body)]"
-						htmlFor="nuevo-afiliado-telefono"
-					>
-						Teléfono
-					</label>
-					<Input
-						id="nuevo-afiliado-telefono"
-						value={telefono}
-						onChange={setTelefono}
-						placeholder="+1 809 555 0000"
-					/>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-body)]"
-						htmlFor="nuevo-afiliado-correo"
-					>
-						Correo
-					</label>
-					<Input
-						id="nuevo-afiliado-correo"
-						value={correo}
-						onChange={setCorreo}
-						placeholder="correo@ejemplo.do"
-					/>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-body)]"
-						htmlFor="nuevo-afiliado-dependientes"
-					>
-						Dependientes
-					</label>
-					<Input
-						id="nuevo-afiliado-dependientes"
-						value={dependientes}
-						onChange={(val) => setDependientes(Number(val) || 0)}
-						placeholder="0"
-					/>
-				</div>
-			</div>
-			<Divider />
-			<div className="flex justify-end gap-2">
-				<Button variant="ghost" onClick={onClose}>
-					Cancelar
-				</Button>
-				<Button
-					variant="success"
-					className="flex items-center justify-center"
-					onClick={crear}
-				>
-					<CheckCircle2 className="w-4 h-4 mr-1" />
-					Crear afiliado
-				</Button>
-			</div>
-		</Modal>
-	);
-}
-
-function AutorizacionesTab({
-	autorizaciones,
-	afiliados,
-	proveedores,
-	aprobarAut,
-	rechazarAut,
-	crearAutorizacion,
-	addNotification,
-}) {
-	const [estado, setEstado] = useState("Todos");
-	const [q, setQ] = useState("");
-	const [open, setOpen] = useState(false);
-
-	const data = useMemo(() => {
-		return autorizaciones
-			.filter((a) => (estado === "Todos" ? true : a.estado === estado))
-			.filter((a) => {
-				const af = afiliados.find((x) => x.id === a.afiliadoId);
-				return !q
-					? true
-					: af?.nombre?.toLowerCase().includes(q.toLowerCase()) ||
-							String(a.id).includes(q);
-			});
-	}, [autorizaciones, afiliados, estado, q]);
-
-	return (
-		<motion.div
-			initial={{ opacity: 0, y: 10 }}
-			animate={{ opacity: 1, y: 0 }}
-			exit={{ opacity: 0, y: 10 }}
-		>
-			<Card>
-				<div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 mb-3">
-					<Select
-						value={estado}
-						onChange={setEstado}
-						className="w-full sm:w-[180px]"
-					>
-						<option>Todos</option>
-						<option>Aprobada</option>
-						<option>Pendiente</option>
-						<option>Rechazada</option>
-					</Select>
-					<div className="relative w-full sm:w-auto flex-1 sm:flex-initial">
-						<Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
-						<Input
-							value={q}
-							onChange={setQ}
-							placeholder="Buscar por nombre o cedula"
-							className="pl-9"
-						/>
-					</div>
-					<div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
-						<Button
-							className="flex items-center justify-center flex-1 sm:flex-initial"
-							onClick={() => setOpen(true)}
-						>
-							<Plus className="w-4 h-4 mr-1" /> Nueva
-						</Button>
-						<Button
-							variant="ghost"
-							className="flex items-center justify-center flex-1 sm:flex-initial"
-							onClick={() =>
-								exportCsv("autorizaciones.csv", [
-									[
-										"ID",
-										"Afiliado",
-										"Procedimiento",
-										"Proveedor",
-										"Estado",
-										"Fecha",
-										"Copago",
-									],
-									...data.map((a) => [
-										a.id,
-										afiliados.find((x) => x.id === a.afiliadoId)?.nombre,
-										a.procedimiento,
-										proveedores.find((p) => p.id === a.proveedorId)?.nombre,
-										a.estado,
-										formatDate(a.fecha),
-										a.copago,
-									]),
-								])
-							}
-						>
-							<FileDown className="w-4 h-4 mr-2" /> Exportar
-						</Button>
-					</div>
-				</div>
-				<div className="overflow-x-auto">
-					<table className="data-table w-full text-sm min-w-[800px]">
-						<thead>
-							<tr className="text-left text-[var(--text-muted)] border-b">
-								<th className="py-2 pr-2 min-w-[60px]">#</th>
-								<th className="py-2 pr-2 min-w-[150px]">Afiliado</th>
-								<th className="py-2 pr-2 min-w-[120px]">Procedimiento</th>
-								<th className="py-2 pr-2 min-w-[150px]">Proveedor</th>
-								<th className="py-2 pr-2 min-w-[80px]">Estado</th>
-								<th className="py-2 pr-2 min-w-[80px]">Fecha</th>
-								<th className="py-2 pr-2 min-w-[200px]">Acciones</th>
-							</tr>
-						</thead>
-						<tbody>
-							{data.map((a) => (
-								<tr key={a.id} className="border-b last:border-0">
-									<td className="py-2 pr-2">{a.id}</td>
-									<td className="py-2 pr-2 font-medium">
-										{afiliados.find((x) => x.id === a.afiliadoId)?.nombre}
-									</td>
-									<td className="py-2 pr-2">{a.procedimiento}</td>
-									<td className="py-2 pr-2">
-										{proveedores.find((p) => p.id === a.proveedorId)?.nombre}
-									</td>
-									<td className="py-2 pr-2">
-										<Badge
-											color={
-												a.estado === "Aprobada"
-													? "green"
-													: a.estado === "Pendiente"
-														? "amber"
-														: "red"
-											}
-										>
-											{a.estado}
-										</Badge>
-									</td>
-									<td className="py-2 pr-2">{formatDate(a.fecha)}</td>
-									<td className="py-2 pr-2">
-										<div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-2">
-											<Button
-												size="sm"
-												variant="success"
-												className="flex items-center justify-center w-full sm:w-auto text-xs"
-												onClick={() => aprobarAut(a.id)}
-											>
-												<CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-												Aprobar
-											</Button>
-											<Button
-												size="sm"
-												variant="danger"
-												className="flex items-center justify-center w-full sm:w-auto text-xs"
-												onClick={() => rechazarAut(a.id)}
-											>
-												<XCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-												Rechazar
-											</Button>
-										</div>
-									</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-				</div>
-			</Card>
-
-			<NuevaAutorizacionModal
-				open={open}
-				onClose={() => setOpen(false)}
-				afiliados={afiliados}
-				proveedores={proveedores}
-				crearAutorizacion={crearAutorizacion}
-				addNotification={addNotification}
-			/>
-		</motion.div>
-	);
-}
-
-function ReclamosTab({
-	reclamaciones,
-	afiliados,
-	proveedores,
-	onRegistrar,
-	addNotification,
-	tema,
-}) {
-	const [estado, setEstado] = useState("Todos");
-	const [q, setQ] = useState("");
-	const [open, setOpen] = useState(false);
-	const g = graficaDe(tema);
-
-	const data = useMemo(() => {
-		return reclamaciones
-			.filter((r) => (estado === "Todos" ? true : r.estado === estado))
-			.filter((r) => {
-				const af = afiliados.find((x) => x.id === r.afiliadoId);
-				return !q
-					? true
-					: af?.nombre?.toLowerCase().includes(q.toLowerCase()) ||
-							String(r.id).includes(q);
-			});
-	}, [reclamaciones, afiliados, estado, q]);
-
-	const total = useMemo(() => data.reduce((s, r) => s + r.monto, 0), [data]);
-	const aprobacionRechazo = useMemo(
-		() => [
-			{
-				name: "Aprobadas",
-				value: data.filter((d) => d.estado === "Aprobada").length,
-			},
-			{
-				name: "Rechazadas",
-				value: data.filter((d) => d.estado === "Rechazada").length,
-			},
-		],
-		[data],
-	);
-
-	return (
-		<motion.div
-			initial={{ opacity: 0, y: 10 }}
-			animate={{ opacity: 1, y: 0 }}
-			exit={{ opacity: 0, y: 10 }}
-		>
-			<div className="grid grid-cols-1 gap-4">
-				<Card>
-					<div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 mb-3">
-						<Select
-							value={estado}
-							onChange={setEstado}
-							className="w-full sm:w-[180px]"
-						>
-							<option>Todos</option>
-							<option>En revisión</option>
-							<option>Aprobada</option>
-							<option>Rechazada</option>
-						</Select>
-						<div className="relative w-full sm:w-auto flex-1 sm:flex-initial">
-							<Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
-							<Input
-								value={q}
-								onChange={setQ}
-								placeholder="Buscar por nombre o cedula"
-								className="pl-9"
-							/>
-						</div>
-						<div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
-							<Button
-								className="flex items-center justify-center flex-1 sm:flex-initial"
-								onClick={() => setOpen(true)}
-							>
-								<Plus className="w-4 h-4 mr-1" /> Registrar reclamo
-							</Button>
-							<Button
-								variant="ghost"
-								className="flex items-center justify-center flex-1 sm:flex-initial"
-								onClick={() =>
-									exportCsv("reclamaciones.csv", [
-										["ID", "Afiliado", "Proveedor", "Monto", "Estado", "Fecha"],
-										...data.map((r) => [
-											r.id,
-											afiliados.find((x) => x.id === r.afiliadoId)?.nombre,
-											proveedores.find((p) => p.id === r.proveedorId)?.nombre,
-											r.monto,
-											r.estado,
-											formatDate(r.fecha),
-										]),
-									])
-								}
-							>
-								<FileDown className="w-4 h-4 mr-2" /> Exportar
-							</Button>
-						</div>
-					</div>
-					<div className="overflow-x-auto">
-						<table className="data-table w-full text-sm min-w-[700px]">
-							<thead>
-								<tr className="text-left text-[var(--text-muted)] border-b">
-									<th className="py-2 pr-2 min-w-[60px]">#</th>
-									<th className="py-2 pr-2 min-w-[150px]">Afiliado</th>
-									<th className="py-2 pr-2 min-w-[150px]">Proveedor</th>
-									<th className="py-2 pr-2 min-w-[100px]">Monto</th>
-									<th className="py-2 pr-2 min-w-[80px]">Estado</th>
-									<th className="py-2 pr-2 min-w-[80px]">Fecha</th>
-								</tr>
-							</thead>
-							<tbody>
-								{data.map((r) => (
-									<tr key={r.id} className="border-b last:border-0">
-										<td className="py-2 pr-2">{r.id}</td>
-										<td className="py-2 pr-2 font-medium">
-											{afiliados.find((x) => x.id === r.afiliadoId)?.nombre}
-										</td>
-										<td className="py-2 pr-2">
-											{proveedores.find((p) => p.id === r.proveedorId)?.nombre}
-										</td>
-										<td className="py-2 pr-2">{currency(r.monto)}</td>
-										<td className="py-2 pr-2">
-											<Badge
-												color={
-													r.estado === "Aprobada"
-														? "green"
-														: r.estado === "En revisión"
-															? "amber"
-															: "red"
-												}
-											>
-												{r.estado}
-											</Badge>
-										</td>
-										<td className="py-2 pr-2">{formatDate(r.fecha)}</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					</div>
-				</Card>
-
-				<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-					<Card>
-						<h3 className="font-semibold mb-2">Resumen</h3>
-						<div className="space-y-2 text-sm">
-							<div className="flex justify-between">
-								<span>Reclamos en vista:</span>
-								<span className="font-medium">{data.length}</span>
-							</div>
-							<div className="flex justify-between">
-								<span>Monto total:</span>
-								<span className="font-medium">{currency(total)}</span>
-							</div>
-						</div>
-					</Card>
-
-					<Card>
-						<h4 className="font-medium mb-2">Aprobación vs Rechazo</h4>
-						<ResponsiveContainer width="100%" height={180}>
-							<PieChart>
-								<Pie
-									dataKey="value"
-									data={aprobacionRechazo}
-									outerRadius={70}
-									label
-								>
-									{aprobacionRechazo.map((sector, i) => (
-										<Cell
-											key={sector.name}
-											fill={g?.sectores[i % g.sectores.length]}
-										/>
-									))}
-								</Pie>
-								<Tooltip contentStyle={g?.tooltip} />
-							</PieChart>
-						</ResponsiveContainer>
-					</Card>
-				</div>
-			</div>
-
-			<RegistrarReclamoModal
-				open={open}
-				onClose={() => setOpen(false)}
-				afiliados={afiliados}
-				proveedores={proveedores}
-				onRegistrar={onRegistrar}
-				addNotification={addNotification}
-			/>
-		</motion.div>
-	);
-}
-
-function RegistrarReclamoModal({
-	open,
-	onClose,
-	afiliados,
-	proveedores,
-	onRegistrar,
-	addNotification,
-}) {
-	const [afiliadoId, setAfiliadoId] = useState(afiliados[0]?.id ?? "");
-	const [proveedorId, setProveedorId] = useState(proveedores[0]?.id ?? "");
-	const [monto, setMonto] = useState(500);
-
-	const submit = () => {
-		onRegistrar({ afiliadoId, proveedorId, monto: Number(monto) });
-		onClose?.();
-		addNotification({
-			type: "success",
-			title: "Reclamo Registrado",
-			message: "El reclamo ha sido registrado exitosamente y está en revisión.",
-		});
-	};
-
-	return (
-		<Modal open={open} onClose={onClose} title="Registrar reclamo">
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-				<div>
-					<label
-						className="text-xs text-[var(--text-body)]"
-						htmlFor="registrar-reclamo-afiliado"
-					>
-						Afiliado
-					</label>
-					<Select
-						id="registrar-reclamo-afiliado"
-						value={afiliadoId}
-						onChange={setAfiliadoId}
-					>
-						{afiliados.map((a) => (
-							<option key={a.id} value={a.id}>
-								{a.nombre}
-							</option>
-						))}
-					</Select>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-body)]"
-						htmlFor="registrar-reclamo-proveedor"
-					>
-						Proveedor
-					</label>
-					<Select
-						id="registrar-reclamo-proveedor"
-						value={proveedorId}
-						onChange={setProveedorId}
-					>
-						{proveedores.map((p) => (
-							<option key={p.id} value={p.id}>
-								{p.nombre}
-							</option>
-						))}
-					</Select>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-body)]"
-						htmlFor="registrar-reclamo-monto"
-					>
-						Monto
-					</label>
-					<Input
-						id="registrar-reclamo-monto"
-						type="number"
-						value={monto}
-						onChange={(value) => setMonto(Number(value) || 0)}
-					/>
-				</div>
-			</div>
-			<div className="mt-4 flex justify-end gap-2">
-				<Button variant="ghost" onClick={onClose}>
-					Cancelar
-				</Button>
-				<Button
-					variant="primary"
-					className="flex items-center justify-center"
-					onClick={submit}
-				>
-					<CheckCircle2 className="w-4 h-4 mr-1" />
-					Guardar
-				</Button>
-			</div>
-		</Modal>
-	);
-}
-
-function PolizasTab({ polizas, planes }) {
-	const [personas, setPersonas] = useState(50);
-	const [plan, setPlan] = useState("PLUS");
-
-	const primaEstimada = useMemo(() => {
-		const base = plan === "BASICO" ? 1500 : plan === "PLUS" ? 1800 : 2200;
-		return personas * base;
-	}, [personas, plan]);
-
-	return (
-		<motion.div
-			initial={{ opacity: 0, y: 10 }}
-			animate={{ opacity: 1, y: 0 }}
-			exit={{ opacity: 0, y: 10 }}
-		>
-			<div className="grid grid-cols-1 gap-4">
-				<Card>
-					<h3 className="font-semibold mb-3">Pólizas</h3>
-					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-						{polizas.map((p) => (
-							<div key={p.id} className="rounded-xl border p-3">
-								<div className="flex items-center justify-between mb-2">
-									<div>
-										<div className="text-sm text-[var(--text-muted)]">
-											{p.id}
-										</div>
-										<div className="font-semibold text-sm sm:text-base">
-											{p.empresa}
-										</div>
-									</div>
-									<div className="flex items-center gap-2">
-										<Badge color="blue">{p.plan}</Badge>
-										<Badge
-											color={
-												p.estado === "Vigente"
-													? "green"
-													: p.estado.includes("gracia")
-														? "amber"
-														: "red"
-											}
-										>
-											{p.estado}
-										</Badge>
-									</div>
-								</div>
-								<div className="grid grid-cols-1 sm:grid-cols-2 text-sm gap-2">
-									<div>
-										<div className="text-[var(--text-muted)]">Vigencia</div>
-										<div className="text-xs sm:text-sm">
-											{formatDate(p.desde)} — {formatDate(p.hasta)}
-										</div>
-									</div>
-									<div>
-										<div className="text-[var(--text-muted)]">
-											Prima mensual
-										</div>
-										<div className="font-medium">
-											{currency(p.primaMensual)}
-										</div>
-									</div>
-									<div className="sm:col-span-2">
-										<div className="text-[var(--text-muted)]">Asegurados</div>
-										<div className="font-medium">{p.asegurados}</div>
-									</div>
-								</div>
-							</div>
-						))}
-					</div>
-				</Card>
-
-				<Card>
-					<h3 className="font-semibold mb-3">Simulador de prima</h3>
-					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 text-sm">
-						<div>
-							<label
-								className="text-xs text-[var(--text-body)]"
-								htmlFor="registrar-reclamo-plan"
-							>
-								Plan
-							</label>
-							<Select
-								id="registrar-reclamo-plan"
-								value={plan}
-								onChange={setPlan}
-							>
-								{planes.map((p) => (
-									<option key={p.id} value={p.id}>
-										{p.nombre}
-									</option>
-								))}
-							</Select>
-						</div>
-						<div>
-							<label
-								className="text-xs text-[var(--text-body)]"
-								htmlFor="registrar-reclamo-personas"
-							>
-								Personas
-							</label>
-							<Input
-								id="registrar-reclamo-personas"
-								type="number"
-								value={personas}
-								onChange={(v) => setPersonas(Number(v))}
-							/>
-						</div>
-						<Divider className="sm:col-span-2 lg:col-span-1" />
-						<div className="flex items-center justify-between sm:col-span-2 lg:col-span-1">
-							<span>Prima estimada:</span>
-							<span className="text-lg font-semibold">
-								{currency(primaEstimada)}
-							</span>
-						</div>
-					</div>
-				</Card>
-			</div>
-		</motion.div>
-	);
-}
-
-function ProveedoresTab({ proveedores }) {
-	const [ciudad, setCiudad] = useState("Todas");
-	const [tipo, setTipo] = useState("Todos");
-
-	const data = useMemo(() => {
-		return proveedores.filter(
-			(p) =>
-				(ciudad === "Todas" || p.ciudad === ciudad) &&
-				(tipo === "Todos" || p.tipo === tipo),
-		);
-	}, [proveedores, ciudad, tipo]);
-
-	const ciudades = useMemo(
-		() => [
-			"Todas",
-			...Array.from(new Set<string>(proveedores.map((p) => p.ciudad))),
-		],
-		[proveedores],
-	);
-	const tipos = useMemo(
-		() => [
-			"Todos",
-			...Array.from(new Set<string>(proveedores.map((p) => p.tipo))),
-		],
-		[proveedores],
-	);
-
-	return (
-		<motion.div
-			initial={{ opacity: 0, y: 10 }}
-			animate={{ opacity: 1, y: 0 }}
-			exit={{ opacity: 0, y: 10 }}
-		>
-			<Card>
-				<div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 mb-3">
-					<Select
-						value={ciudad}
-						onChange={setCiudad}
-						className="w-full sm:w-[200px]"
-					>
-						{ciudades.map((c) => (
-							<option key={c}>{c}</option>
-						))}
-					</Select>
-					<Select
-						value={tipo}
-						onChange={setTipo}
-						className="w-full sm:w-[200px]"
-					>
-						{tipos.map((t) => (
-							<option key={t}>{t}</option>
-						))}
-					</Select>
-					<div className="w-full sm:w-auto sm:ml-auto text-sm text-[var(--text-body)]">
-						{data.length} proveedor(es)
-					</div>
-				</div>
-				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-					{data.map((p) => (
-						<div key={p.id} className="rounded-xl border p-3">
-							<div className="flex items-start justify-between mb-2">
-								<div className="flex-1 min-w-0">
-									<div className="font-semibold text-sm sm:text-base truncate">
-										{p.nombre}
-									</div>
-									<div className="text-xs text-[var(--text-muted)]">
-										{p.ciudad}
-									</div>
-								</div>
-								<Badge color="slate" className="ml-2 flex-shrink-0">
-									{p.tipo}
-								</Badge>
-							</div>
-							<div className="text-sm text-[var(--text-body)]">
-								{p.telefono}
-							</div>
-						</div>
-					))}
-				</div>
-			</Card>
-		</motion.div>
-	);
-}
-
-function ServiciosTab({
-	servicios,
-	afiliados,
-	proveedores,
-	autorizaciones,
-	onRegistrar,
-	addNotification,
-}) {
-	const [open, setOpen] = useState(false);
-	const [filtroProveedor, setFiltroProveedor] = useState("todos");
-	const [filtroEstado, setFiltroEstado] = useState("todos");
-
-	const serviciosFiltrados = useMemo(() => {
-		return servicios.filter((s) => {
-			if (
-				filtroProveedor !== "todos" &&
-				String(s.proveedorId) !== String(filtroProveedor)
-			)
-				return false;
-			if (filtroEstado !== "todos" && s.estado !== filtroEstado) return false;
-			return true;
-		});
-	}, [servicios, filtroProveedor, filtroEstado]);
-
-	const exportar = () => {
-		const rows = [
-			[
-				"Fecha",
-				"Afiliado",
-				"Proveedor",
-				"Descripción",
-				"Costo",
-				"Copago",
-				"Estado",
-				"Autorización",
-			],
-		];
-		serviciosFiltrados.forEach((s) => {
-			const af = afiliados.find((a) => a.id === s.afiliadoId);
-			const pr = proveedores.find((p) => p.id === s.proveedorId);
-			rows.push([
-				formatDate(s.fecha),
-				af?.nombre || "-",
-				pr?.nombre || "-",
-				s.descripcion,
-				currency(s.costo),
-				currency(s.copago ?? 0),
-				s.estado,
-				s.autorizacionId ? String(s.autorizacionId) : "-",
-			]);
-		});
-		exportCsv("servicios.csv", rows);
-	};
-
-	return (
-		<motion.div
-			initial={{ opacity: 0, y: 20 }}
-			animate={{ opacity: 1, y: 0 }}
-			className="space-y-4"
-		>
-			<div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-				<div className="flex items-center gap-2">
-					<Select
-						value={filtroProveedor}
-						onChange={setFiltroProveedor}
-						className="w-48"
-					>
-						<option value="todos">Todos los proveedores</option>
-						{proveedores.map((p) => (
-							<option key={p.id} value={String(p.id)}>
-								{p.nombre}
-							</option>
-						))}
-					</Select>
-					<Select
-						value={filtroEstado}
-						onChange={setFiltroEstado}
-						className="w-40"
-					>
-						<option value="todos">Todos los estados</option>
-						<option value="Pendiente de Pago">Pendiente de Pago</option>
-						<option value="Pagado">Pagado</option>
-					</Select>
-				</div>
-				<div className="flex items-center gap-2">
-					<Button
-						variant="ghost"
-						onClick={exportar}
-						className="flex items-center"
-					>
-						<FileDown className="w-4 h-4 mr-1" /> Exportar CSV
-					</Button>
-					<Button
-						variant="primary"
-						onClick={() => setOpen(true)}
-						className="flex items-center"
-					>
-						<Plus className="w-4 h-4 mr-1" /> Registrar servicio
-					</Button>
-				</div>
-			</div>
-
-			<Card>
-				<div className="overflow-x-auto">
-					<table className="data-table w-full text-sm min-w-[900px]">
-						<thead>
-							<tr className="text-left text-[var(--text-muted)] border-b">
-								<th className="py-2 pr-2">Fecha</th>
-								<th className="py-2 pr-2">Afiliado</th>
-								<th className="py-2 pr-2">Proveedor</th>
-								<th className="py-2 pr-2">Descripción</th>
-								<th className="py-2 pr-2">Costo</th>
-								<th className="py-2 pr-2">Copago</th>
-								<th className="py-2 pr-2">Estado</th>
-							</tr>
-						</thead>
-						<tbody>
-							{serviciosFiltrados.map((s) => {
-								const af = afiliados.find((a) => a.id === s.afiliadoId);
-								const pr = proveedores.find((p) => p.id === s.proveedorId);
-								return (
-									<tr key={s.id} className="border-b last:border-0">
-										<td className="py-2 pr-2">{formatDate(s.fecha)}</td>
-										<td className="py-2 pr-2">{af?.nombre}</td>
-										<td className="py-2 pr-2">{pr?.nombre}</td>
-										<td className="py-2 pr-2">{s.descripcion}</td>
-										<td className="py-2 pr-2">{currency(s.costo)}</td>
-										<td className="py-2 pr-2">{currency(s.copago ?? 0)}</td>
-										<td className="py-2 pr-2">
-											<Badge color={s.estado === "Pagado" ? "green" : "amber"}>
-												{s.estado}
-											</Badge>
-										</td>
-									</tr>
-								);
-							})}
-						</tbody>
-					</table>
-				</div>
-			</Card>
-
-			<RegistrarServicioModal
-				open={open}
-				onClose={() => setOpen(false)}
-				afiliados={afiliados}
-				proveedores={proveedores}
-				autorizaciones={autorizaciones}
-				onRegistrar={onRegistrar}
-				addNotification={addNotification}
-			/>
-		</motion.div>
-	);
-}
-
-function RegistrarServicioModal({
-	open,
-	onClose,
-	afiliados,
-	proveedores,
-	autorizaciones,
-	onRegistrar,
-	addNotification,
-}) {
-	const [afiliadoId, setAfiliadoId] = useState(
-		afiliados[0]?.id ? String(afiliados[0].id) : "",
-	);
-	const [proveedorId, setProveedorId] = useState(
-		proveedores[0]?.id ? String(proveedores[0].id) : "",
-	);
-	const [descripcion, setDescripcion] = useState("Consulta general");
-	const [costo, setCosto] = useState("1000");
-	const [autorizacionId, setAutorizacionId] = useState("");
-
-	const autorizDelAfiliado = useMemo(() => {
-		return autorizaciones.filter(
-			(a) => String(a.afiliadoId) === afiliadoId && a.estado === "Aprobada",
-		);
-	}, [autorizaciones, afiliadoId]);
-
-	const registrar = async () => {
-		const nuevo = await onRegistrar({
-			afiliadoId,
-			proveedorId,
-			descripcion,
-			costo,
-			autorizacionId: autorizacionId || undefined,
-		});
-		if (!nuevo) return;
-		addNotification({
-			id: Date.now(),
-			type: "success",
-			title: "Servicio registrado",
-			message: `Se registró servicio para afiliado ${afiliados.find((a) => String(a.id) === afiliadoId)?.nombre}.`,
-		});
-		onClose();
-		return nuevo;
-	};
-
-	return (
-		<Modal open={open} onClose={onClose} title="Registrar servicio médico">
-			<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-				<div>
-					<label
-						className="text-xs text-[var(--text-muted)]"
-						htmlFor="registrar-servicio-medico-afiliado"
-					>
-						Afiliado
-					</label>
-					<Select
-						id="registrar-servicio-medico-afiliado"
-						value={afiliadoId}
-						onChange={setAfiliadoId}
-					>
-						{afiliados.map((a) => (
-							<option key={a.id} value={String(a.id)}>
-								{a.nombre}
-							</option>
-						))}
-					</Select>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-muted)]"
-						htmlFor="registrar-servicio-medico-proveedor"
-					>
-						Proveedor
-					</label>
-					<Select
-						id="registrar-servicio-medico-proveedor"
-						value={proveedorId}
-						onChange={setProveedorId}
-					>
-						{proveedores.map((p) => (
-							<option key={p.id} value={String(p.id)}>
-								{p.nombre}
-							</option>
-						))}
-					</Select>
-				</div>
-				<div className="sm:col-span-2">
-					<label
-						className="text-xs text-[var(--text-muted)]"
-						htmlFor="registrar-servicio-medico-descripcion"
-					>
-						Descripción
-					</label>
-					<Input
-						id="registrar-servicio-medico-descripcion"
-						value={descripcion}
-						onChange={setDescripcion}
-						placeholder="Ej. Consulta general"
-					/>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-muted)]"
-						htmlFor="registrar-servicio-medico-costo"
-					>
-						Costo
-					</label>
-					<Input
-						id="registrar-servicio-medico-costo"
-						type="number"
-						value={costo}
-						onChange={setCosto}
-					/>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-muted)]"
-						htmlFor="registrar-servicio-medico-autorizacion-opcional"
-					>
-						Autorización (opcional)
-					</label>
-					<Select
-						id="registrar-servicio-medico-autorizacion-opcional"
-						value={autorizacionId}
-						onChange={setAutorizacionId}
-					>
-						<option value="">Sin autorización</option>
-						{autorizDelAfiliado.map((a) => (
-							<option key={a.id} value={String(a.id)}>
-								{a.id} - {a.procedimiento}
-							</option>
-						))}
-					</Select>
-				</div>
-			</div>
-			<Divider />
-			<div className="flex justify-end gap-2">
-				<Button variant="ghost" onClick={onClose}>
-					Cancelar
-				</Button>
-				<Button variant="primary" onClick={registrar}>
-					Registrar
-				</Button>
-			</div>
-		</Modal>
-	);
-}
-
-function PagosTab({
-	servicios,
-	pagos,
-	proveedores,
-	onEmitirPago,
-	addNotification,
-}) {
-	const [open, setOpen] = useState(false);
-	const [filtroProveedor, setFiltroProveedor] = useState("todos");
-
-	const pagosFiltrados = useMemo(() => {
-		return pagos.filter(
-			(p) =>
-				filtroProveedor === "todos" ||
-				String(p.proveedorId) === String(filtroProveedor),
-		);
-	}, [pagos, filtroProveedor]);
-
-	const exportar = () => {
-		const rows = [
-			[
-				"Fecha",
-				"Proveedor",
-				"Servicio",
-				"Monto",
-				"Estado",
-				"Referencia",
-				"Método",
-			],
-		];
-		pagosFiltrados.forEach((p) => {
-			const pr = proveedores.find((x) => x.id === p.proveedorId);
-			rows.push([
-				formatDate(p.fecha),
-				pr?.nombre || "-",
-				String(p.servicioId),
-				currency(p.monto),
-				p.estado,
-				p.referenciaBanco,
-				p.metodo,
-			]);
-		});
-		exportCsv("pagos.csv", rows);
-	};
-
-	return (
-		<motion.div
-			initial={{ opacity: 0, y: 20 }}
-			animate={{ opacity: 1, y: 0 }}
-			className="space-y-4"
-		>
-			<div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-				<div className="flex items-center gap-2">
-					<Select
-						value={filtroProveedor}
-						onChange={setFiltroProveedor}
-						className="w-48"
-					>
-						<option value="todos">Todos los proveedores</option>
-						{proveedores.map((p) => (
-							<option key={p.id} value={String(p.id)}>
-								{p.nombre}
-							</option>
-						))}
-					</Select>
-				</div>
-				<div className="flex items-center gap-2">
-					<Button
-						variant="ghost"
-						onClick={exportar}
-						className="flex items-center"
-					>
-						<FileDown className="w-4 h-4 mr-1" /> Exportar CSV
-					</Button>
-					<Button
-						variant="primary"
-						onClick={() => setOpen(true)}
-						className="flex items-center"
-					>
-						<Wallet className="w-4 h-4 mr-1" /> Emitir pago
-					</Button>
-				</div>
-			</div>
-
-			<Card>
-				<div className="overflow-x-auto">
-					<table className="data-table w-full text-sm min-w-[900px]">
-						<thead>
-							<tr className="text-left text-[var(--text-muted)] border-b">
-								<th className="py-2 pr-2">Fecha</th>
-								<th className="py-2 pr-2">Proveedor</th>
-								<th className="py-2 pr-2">Servicio</th>
-								<th className="py-2 pr-2">Monto</th>
-								<th className="py-2 pr-2">Estado</th>
-								<th className="py-2 pr-2">Referencia</th>
-								<th className="py-2 pr-2">Método</th>
-							</tr>
-						</thead>
-						<tbody>
-							{pagosFiltrados.map((p) => {
-								const pr = proveedores.find((x) => x.id === p.proveedorId);
-								const servicio = servicios.find((s) => s.id === p.servicioId);
-								return (
-									<tr key={p.id} className="border-b last:border-0">
-										<td className="py-2 pr-2">{formatDate(p.fecha)}</td>
-										<td className="py-2 pr-2">{pr?.nombre}</td>
-										<td className="py-2 pr-2">
-											{servicio
-												? `${servicio.descripcion} (${servicio.id})`
-												: p.servicioId}
-										</td>
-										<td className="py-2 pr-2">{currency(p.monto)}</td>
-										<td className="py-2 pr-2">
-											<Badge
-												color={p.estado === "Procesado" ? "green" : "amber"}
-											>
-												{p.estado}
-											</Badge>
-										</td>
-										<td className="py-2 pr-2">{p.referenciaBanco}</td>
-										<td className="py-2 pr-2">{p.metodo}</td>
-									</tr>
-								);
-							})}
-						</tbody>
-					</table>
-				</div>
-			</Card>
-
-			<EmitirPagoModal
-				open={open}
-				onClose={() => setOpen(false)}
-				servicios={servicios}
-				proveedores={proveedores}
-				onEmitirPago={onEmitirPago}
-				addNotification={addNotification}
-			/>
-		</motion.div>
-	);
-}
-
-function EmitirPagoModal({
-	open,
-	onClose,
-	servicios,
-	proveedores,
-	onEmitirPago,
-	addNotification,
-}) {
-	const pendientes = servicios.filter((s) => s.estado === "Pendiente de Pago");
-	const [servicioId, setServicioId] = useState(
-		pendientes[0]?.id ? String(pendientes[0].id) : "",
-	);
-	const servicioSel = pendientes.find((s) => String(s.id) === servicioId);
-	const proveedorSel = proveedores.find(
-		(p) => p.id === servicioSel?.proveedorId,
-	);
-	const monto = servicioSel
-		? Math.max(0, (servicioSel.costo || 0) - (servicioSel.copago || 0))
-		: 0;
-	const [referenciaBanco, setReferenciaBanco] = useState("");
-	const [metodo, setMetodo] = useState("Transferencia");
-
-	useEffect(() => {
-		const s = pendientes.find((x) => String(x.id) === servicioId);
-		setReferenciaBanco(
-			s
-				? `ORD-${new Date().getFullYear()}-${String(s.id).padStart(4, "0")}`
-				: "",
-		);
-	}, [servicioId, pendientes]);
-
-	const emitir = async () => {
-		const pago = await onEmitirPago({
-			servicioId,
-			monto,
-			referenciaBanco,
-			metodo,
-		});
-		if (pago) {
-			addNotification({
-				id: Date.now(),
-				type: "success",
-				title: "Pago emitido",
-				message: `Se emitió pago a ${proveedorSel?.nombre} por ${currency(monto)}.`,
-			});
-			onClose();
-		}
-	};
-
-	return (
-		<Modal open={open} onClose={onClose} title="Emitir pago a proveedor">
-			<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-				<div className="sm:col-span-2">
-					<label
-						className="text-xs text-[var(--text-muted)]"
-						htmlFor="emitir-pago-a-proveedor-servicio-pendiente"
-					>
-						Servicio pendiente
-					</label>
-					<Select
-						id="emitir-pago-a-proveedor-servicio-pendiente"
-						value={servicioId}
-						onChange={setServicioId}
-					>
-						{pendientes.map((s) => (
-							<option
-								key={s.id}
-								value={String(s.id)}
-							>{`${s.id} - ${s.descripcion} (${formatDate(s.fecha)})`}</option>
-						))}
-					</Select>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-muted)]"
-						htmlFor="emitir-pago-a-proveedor-proveedor"
-					>
-						Proveedor
-					</label>
-					<Input
-						id="emitir-pago-a-proveedor-proveedor"
-						value={proveedorSel?.nombre || ""}
-						onChange={() => {}}
-						readOnly
-					/>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-muted)]"
-						htmlFor="emitir-pago-a-proveedor-monto"
-					>
-						Monto
-					</label>
-					<Input
-						id="emitir-pago-a-proveedor-monto"
-						value={currency(monto)}
-						onChange={() => {}}
-						readOnly
-					/>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-muted)]"
-						htmlFor="emitir-pago-a-proveedor-referencia-bancaria"
-					>
-						Referencia bancaria
-					</label>
-					<Input
-						id="emitir-pago-a-proveedor-referencia-bancaria"
-						value={referenciaBanco}
-						onChange={setReferenciaBanco}
-					/>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-muted)]"
-						htmlFor="emitir-pago-a-proveedor-metodo"
-					>
-						Método
-					</label>
-					<Select
-						id="emitir-pago-a-proveedor-metodo"
-						value={metodo}
-						onChange={setMetodo}
-					>
-						<option>Transferencia</option>
-						<option>ACH</option>
-						<option>Cheque</option>
-					</Select>
-				</div>
-			</div>
-			<Divider />
-			<div className="flex justify-end gap-2">
-				<Button variant="ghost" onClick={onClose}>
-					Cancelar
-				</Button>
-				<Button
-					variant="primary"
-					onClick={emitir}
-					disabled={!servicioId || !referenciaBanco}
-				>
-					Emitir pago
-				</Button>
-			</div>
-		</Modal>
-	);
-}
-
-function FacturacionTab({
-	facturas,
-	polizas,
-	onGenerarMes,
-	onRecordatorio,
-	onRegistrarPago,
-	onGracia,
-	onSuspender,
-}) {
-	const [filtroPeriodo, setFiltroPeriodo] = useState("todos");
-	const [filtroEstado, setFiltroEstado] = useState("todos");
-	const [openPago, setOpenPago] = useState(false);
-	const [facturaSel, setFacturaSel] = useState(null);
-
-	const periodos = useMemo(
-		() => Array.from(new Set<string>(facturas.map((f) => f.periodo))),
-		[facturas],
-	);
-
-	const facturasFiltradas = useMemo(() => {
-		return facturas.filter((f) => {
-			if (filtroPeriodo !== "todos" && f.periodo !== filtroPeriodo)
-				return false;
-			if (filtroEstado !== "todos" && f.estado !== filtroEstado) return false;
-			return true;
-		});
-	}, [facturas, filtroPeriodo, filtroEstado]);
-
-	const exportar = () => {
-		const rows = [
-			[
-				"Periodo",
-				"Póliza",
-				"Empresa",
-				"Emisión",
-				"Vencimiento",
-				"Monto",
-				"Estado",
-				"Fecha Pago",
-				"Referencia",
-				"Recordatorio",
-			],
-		];
-		facturasFiltradas.forEach((f) => {
-			const p = polizas.find((x) => x.id === f.polizaId);
-			rows.push([
-				f.periodo,
-				f.polizaId,
-				p?.empresa || "-",
-				formatDate(f.emision),
-				formatDate(f.vencimiento),
-				currency(f.monto),
-				f.estado,
-				f.fechaPago ? formatDate(f.fechaPago) : "-",
-				f.referencia || "-",
-				f.recordatorioEnviado ? "Sí" : "No",
-			]);
-		});
-		exportCsv("facturas_polizas.csv", rows);
-	};
-
-	return (
-		<motion.div
-			initial={{ opacity: 0, y: 20 }}
-			animate={{ opacity: 1, y: 0 }}
-			className="space-y-4"
-		>
-			<div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-				<div className="flex items-center gap-2">
-					<Select
-						value={filtroPeriodo}
-						onChange={setFiltroPeriodo}
-						className="w-40"
-					>
-						<option value="todos">Todos los periodos</option>
-						{periodos.map((per) => (
-							<option key={per} value={per}>
-								{per}
-							</option>
-						))}
-					</Select>
-					<Select
-						value={filtroEstado}
-						onChange={setFiltroEstado}
-						className="w-40"
-					>
-						<option value="todos">Todos los estados</option>
-						<option>Pendiente</option>
-						<option>Atrasada</option>
-						<option>En gracia</option>
-						<option>Pagada</option>
-					</Select>
-				</div>
-				<div className="flex items-center gap-2">
-					<Button
-						variant="ghost"
-						onClick={exportar}
-						className="flex items-center"
-					>
-						<FileDown className="w-4 h-4 mr-1" /> Exportar CSV
-					</Button>
-					<Button
-						variant="primary"
-						onClick={onGenerarMes}
-						className="flex items-center"
-					>
-						<RefreshCw className="w-4 h-4 mr-1" /> Generar facturas del mes
-					</Button>
-				</div>
-			</div>
-
-			<Card>
-				<div className="overflow-x-auto">
-					<table className="data-table w-full text-sm min-w-[1000px]">
-						<thead>
-							<tr className="text-left text-[var(--text-muted)] border-b">
-								<th className="py-2 pr-2">Periodo</th>
-								<th className="py-2 pr-2">Póliza</th>
-								<th className="py-2 pr-2">Empresa</th>
-								<th className="py-2 pr-2">Emisión</th>
-								<th className="py-2 pr-2">Vencimiento</th>
-								<th className="py-2 pr-2">Monto</th>
-								<th className="py-2 pr-2">Estado</th>
-								<th className="py-2 pr-2">Acciones</th>
-							</tr>
-						</thead>
-						<tbody>
-							{facturasFiltradas.map((f) => {
-								const p = polizas.find((x) => x.id === f.polizaId);
-								return (
-									<tr key={f.id} className="border-b last:border-0">
-										<td className="py-2 pr-2">{f.periodo}</td>
-										<td className="py-2 pr-2">{f.polizaId}</td>
-										<td className="py-2 pr-2">{p?.empresa}</td>
-										<td className="py-2 pr-2">{formatDate(f.emision)}</td>
-										<td className="py-2 pr-2">{formatDate(f.vencimiento)}</td>
-										<td className="py-2 pr-2">{currency(f.monto)}</td>
-										<td className="py-2 pr-2">
-											<Badge
-												color={
-													f.estado === "Pagada"
-														? "green"
-														: f.estado === "Pendiente"
-															? "blue"
-															: f.estado === "Atrasada"
-																? "amber"
-																: "amber"
-												}
-											>
-												{f.estado}
-											</Badge>
-										</td>
-										<td className="py-2 pr-2">
-											<div className="flex flex-wrap gap-2">
-												{f.estado !== "Pagada" && (
-													<Button
-														variant="primary"
-														size="sm"
-														onClick={() => {
-															setFacturaSel(f);
-															setOpenPago(true);
-														}}
-													>
-														Registrar pago
-													</Button>
-												)}
-												{f.estado !== "Pagada" && (
-													<Button
-														variant="ghost"
-														size="sm"
-														onClick={() => onRecordatorio(f.id)}
-													>
-														Recordatorio
-													</Button>
-												)}
-												{f.estado !== "Pagada" && (
-													<Button
-														variant="warning"
-														size="sm"
-														onClick={() => onGracia(f.id)}
-													>
-														Periodo de gracia
-													</Button>
-												)}
-												{f.estado !== "Pagada" && (
-													<Button
-														variant="danger"
-														size="sm"
-														onClick={() => onSuspender(f.id)}
-													>
-														Suspender póliza
-													</Button>
-												)}
-											</div>
-										</td>
-									</tr>
-								);
-							})}
-						</tbody>
-					</table>
-				</div>
-			</Card>
-
-			<RegistrarPagoPrimaModal
-				open={openPago}
-				onClose={() => setOpenPago(false)}
-				factura={facturaSel}
-				onRegistrarPago={onRegistrarPago}
-			/>
-		</motion.div>
-	);
-}
-
-function RegistrarPagoPrimaModal({ open, onClose, factura, onRegistrarPago }) {
-	const [referencia, setReferencia] = useState("");
-	if (!factura) return null;
-	const submit = async () => {
-		await onRegistrarPago({ facturaId: factura.id, referencia });
-		onClose();
-	};
-	return (
-		<Modal
-			open={open}
-			onClose={onClose}
-			title={`Registrar pago de ${factura.polizaId}`}
-		>
-			<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-				<div>
-					<label
-						className="text-xs text-[var(--text-muted)]"
-						htmlFor="pago-prima-periodo"
-					>
-						Periodo
-					</label>
-					<Input
-						id="pago-prima-periodo"
-						value={factura.periodo}
-						onChange={() => {}}
-						readOnly
-					/>
-				</div>
-				<div>
-					<label
-						className="text-xs text-[var(--text-muted)]"
-						htmlFor="pago-prima-monto"
-					>
-						Monto
-					</label>
-					<Input
-						id="pago-prima-monto"
-						value={currency(factura.monto)}
-						onChange={() => {}}
-						readOnly
-					/>
-				</div>
-				<div className="sm:col-span-2">
-					<label
-						className="text-xs text-[var(--text-muted)]"
-						htmlFor="pago-prima-referencia-bancaria"
-					>
-						Referencia bancaria
-					</label>
-					<Input
-						id="pago-prima-referencia-bancaria"
-						value={referencia}
-						onChange={setReferencia}
-						placeholder="Ej. PR-2025-0105-0001"
-					/>
-				</div>
-			</div>
-			<Divider />
-			<div className="flex justify-end gap-2">
-				<Button variant="ghost" onClick={onClose}>
-					Cancelar
-				</Button>
-				<Button variant="primary" onClick={submit} disabled={!referencia}>
-					Registrar pago
-				</Button>
-			</div>
-		</Modal>
 	);
 }

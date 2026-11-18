@@ -1,31 +1,42 @@
 import { Router } from "express";
 import { z } from "zod";
 import { authController } from "../controllers/auth.controller.js";
-import { businessController } from "../controllers/business.controller.js";
+import {
+	businessController,
+	policyDatesInOrder,
+} from "../controllers/business.controller.js";
 import { crud } from "../controllers/crud.controller.js";
 import { allow, authenticate } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/errors.js";
 import { validate } from "../middleware/validate.js";
-import { validateCedula } from "../Servicios/cedulaValidation.service.js";
+import { validateCedula } from "../services/cedula-validation.service.js";
 
 const r = Router();
-const id = z.string().uuid();
-const uuid = z.object({ id });
+const uuid = z.object({ id: z.string().uuid() });
 const stringId = z.object({ id: z.string().min(2) });
 const roles = {
 	admin: ["ADMINISTRATOR"],
 	staff: ["ADMINISTRATOR", "AGENT"],
 	review: ["ADMINISTRATOR", "SUPERVISOR"],
+	claimReaders: ["ADMINISTRATOR", "AGENT", "SUPERVISOR"],
 };
 const authBody = z.object({
 	username: z.string().min(3),
 	password: z.string().min(6),
 });
+const nationalId = z
+	.string()
+	.trim()
+	.transform((value) => value.replace(/-/g, ""))
+	.pipe(z.string().regex(/^\d{11}$/, "La cédula debe tener 11 dígitos"));
+const policyDate = z
+	.union([z.iso.date(), z.iso.datetime({ offset: true })])
+	.pipe(z.coerce.date());
 const schemas = {
 	insured: z.object({
-		name: z.string().min(2),
-		nationalId: z.string().min(8),
-		planId: z.string(),
+		name: z.string().trim().min(2),
+		nationalId,
+		planId: z.string().trim().min(1),
 		policyId: z.string().optional().nullable(),
 		status: z.enum(["ACTIVE", "SUSPENDED", "INACTIVE"]).optional(),
 		startDate: z.coerce.date(),
@@ -37,7 +48,7 @@ const schemas = {
 	provider: z.object({
 		name: z.string().min(2),
 		type: z.string().min(2),
-		city: z.string().min(2),
+		city: z.string().trim().min(2),
 		phone: z.string().min(7),
 	}),
 	plan: z.object({
@@ -50,8 +61,8 @@ const schemas = {
 		id: z.string().min(2),
 		company: z.string(),
 		planId: z.string(),
-		startDate: z.coerce.date(),
-		endDate: z.coerce.date(),
+		startDate: policyDate,
+		endDate: policyDate,
 		monthlyPremium: z.coerce.number().positive(),
 		insuredCount: z.coerce.number().int().min(0).optional(),
 		status: z.enum(["ACTIVE", "IN_GRACE", "SUSPENDED", "EXPIRED"]).optional(),
@@ -76,9 +87,9 @@ const schemas = {
 	}),
 	payment: z.object({
 		serviceId: z.string().uuid(),
-		amount: z.coerce.number().positive(),
-		bankReference: z.string().min(3),
-		method: z.string().min(3),
+		amount: z.coerce.number().positive().max(999_999_999_999.99),
+		bankReference: z.string().trim().min(3),
+		method: z.string().trim().min(3),
 	}),
 };
 r.post("/auth/login", validate(authBody), asyncHandler(authController.login));
@@ -87,11 +98,7 @@ r.post(
 	validate(
 		authBody.extend({
 			name: z.string().trim().min(2).max(120),
-			nationalId: z
-				.string()
-				.trim()
-				.transform((value) => value.replace(/-/g, ""))
-				.pipe(z.string().regex(/^\d{11}$/, "La cédula debe tener 11 dígitos")),
+			nationalId,
 			password: z.string().min(6).max(72),
 		}),
 	),
@@ -111,22 +118,30 @@ const resource = (
 	include,
 	access = roles.admin,
 	idSchema = uuid,
-	beforeCreate = undefined,
+	{
+		readAccess = access,
+		createSchema = schema,
+		beforeCreate = undefined,
+		list = undefined,
+		get = undefined,
+		update = undefined,
+		remove = undefined,
+	} = {},
 ) => {
 	const c = crud(model, include);
-	r.get(path, authenticate, allow(...access), asyncHandler(c.list));
+	r.get(path, authenticate, allow(...readAccess), asyncHandler(list ?? c.list));
 	r.get(
 		`${path}/:id`,
 		authenticate,
-		allow(...access),
+		allow(...readAccess),
 		validate(idSchema, "params"),
-		asyncHandler(c.get),
+		asyncHandler(get ?? c.get),
 	);
 	r.post(
 		path,
 		authenticate,
 		allow(...access),
-		validate(schema),
+		validate(createSchema),
 		...(beforeCreate ? [asyncHandler(beforeCreate)] : []),
 		asyncHandler(c.create),
 	);
@@ -136,14 +151,14 @@ const resource = (
 		allow(...access),
 		validate(idSchema, "params"),
 		validate(schema.partial()),
-		asyncHandler(c.update),
+		asyncHandler(update ?? c.update),
 	);
 	r.delete(
 		`${path}/:id`,
 		authenticate,
 		allow(...access),
 		validate(idSchema, "params"),
-		asyncHandler(c.remove),
+		asyncHandler(remove ?? c.remove),
 	);
 };
 resource("/planes", "plan", schemas.plan, undefined, roles.staff, stringId);
@@ -155,6 +170,17 @@ resource(
 	{ plan: true },
 	roles.admin,
 	stringId,
+	{
+		createSchema: schemas.policy.refine(
+			({ startDate, endDate }) =>
+				startDate && endDate && policyDatesInOrder({ startDate, endDate }),
+			{
+				path: ["endDate"],
+				message: "El fin de vigencia debe ser igual o posterior al inicio",
+			},
+		),
+		update: businessController.updatePolicy,
+	},
 );
 resource(
 	"/afiliados",
@@ -163,32 +189,55 @@ resource(
 	{ plan: true, policy: true },
 	roles.staff,
 	uuid,
-	async (req, res, next) => {
-		if (!(await validateCedula(req.body.nationalId)))
-			return res.status(422).json({
-				error: "INVALID_CEDULA",
-				message: "La cedula indicada no es valida",
-			});
-		next();
+	{
+		beforeCreate: async (req, res, next) => {
+			if (!(await validateCedula(req.body.nationalId)))
+				return res.status(422).json({
+					error: "INVALID_CEDULA",
+					message: "La cédula indicada no es válida",
+				});
+			next();
+		},
 	},
 );
+const claimRelations = { insured: true, provider: true };
+const fullClaim = crud("claim", claimRelations);
+const claimSummary = crud("claim", {
+	insured: { select: { id: true, name: true } },
+	provider: { select: { id: true, name: true } },
+});
+const readClaim = (operation: "list" | "get") => (req, res) =>
+	(req.user.role === "SUPERVISOR" ? claimSummary : fullClaim)[operation](
+		req,
+		res,
+	);
 resource(
 	"/reclamos",
 	"claim",
 	schemas.claim,
-	{ insured: true, provider: true },
+	claimRelations,
 	roles.staff,
+	uuid,
+	{
+		readAccess: roles.claimReaders,
+		list: readClaim("list"),
+		get: readClaim("get"),
+		update: businessController.editPendingClaim,
+		remove: businessController.removePendingClaim,
+	},
 );
 r.patch(
 	"/reclamos/:id/aprobar",
 	authenticate,
 	allow(...roles.review),
+	validate(uuid, "params"),
 	asyncHandler(businessController.decideClaim("APPROVED")),
 );
 r.patch(
 	"/reclamos/:id/rechazar",
 	authenticate,
 	allow(...roles.review),
+	validate(uuid, "params"),
 	asyncHandler(businessController.decideClaim("REJECTED")),
 );
 resource(
@@ -227,25 +276,21 @@ r.patch(
 	"/autorizaciones/:id/aprobar",
 	authenticate,
 	allow(...roles.review),
+	validate(uuid, "params"),
 	asyncHandler(businessController.decideAuthorization("APPROVED")),
 );
 r.patch(
 	"/autorizaciones/:id/rechazar",
 	authenticate,
 	allow(...roles.review),
+	validate(uuid, "params"),
 	asyncHandler(businessController.decideAuthorization("REJECTED")),
 );
 r.get(
 	"/servicios",
 	authenticate,
 	allow(...roles.staff),
-	asyncHandler(
-		crud("medicalService", {
-			insured: true,
-			provider: true,
-			authorization: true,
-		}).list,
-	),
+	asyncHandler(businessController.listServices),
 );
 r.post(
 	"/servicios",
@@ -271,7 +316,7 @@ r.get(
 	"/facturas",
 	authenticate,
 	allow(...roles.admin),
-	asyncHandler(crud("invoice", { policy: true }).list),
+	asyncHandler(businessController.listInvoices),
 );
 r.post(
 	"/facturas/generar",
@@ -281,7 +326,7 @@ r.post(
 		z.object({
 			period: z
 				.string()
-				.regex(/^\d{4}-\d{2}$/)
+				.regex(/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/)
 				.optional(),
 		}),
 	),
@@ -291,25 +336,29 @@ r.patch(
 	"/facturas/:id/pagar",
 	authenticate,
 	allow(...roles.admin),
-	validate(z.object({ reference: z.string().min(3) })),
+	validate(uuid, "params"),
+	validate(z.object({ reference: z.string().trim().min(3) })),
 	asyncHandler(businessController.payInvoice),
 );
 r.patch(
 	"/facturas/:id/recordatorio",
 	authenticate,
 	allow(...roles.admin),
+	validate(uuid, "params"),
 	asyncHandler(businessController.remindInvoice),
 );
 r.patch(
 	"/facturas/:id/gracia",
 	authenticate,
 	allow(...roles.admin),
+	validate(uuid, "params"),
 	asyncHandler(businessController.graceInvoice),
 );
 r.patch(
 	"/facturas/:id/suspender",
 	authenticate,
 	allow(...roles.admin),
+	validate(uuid, "params"),
 	asyncHandler(businessController.suspendInvoice),
 );
 r.get(

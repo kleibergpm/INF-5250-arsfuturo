@@ -5,7 +5,7 @@ Estas reglas son obligatorias para agentes de IA y colaboradores que modifiquen 
 ## Reglas obligatorias
 
 1. Usa exclusivamente `pnpm`; no ejecutes `npm` ni `npx`.
-2. No actualices `package-lock.json` ni crees otro lockfile.
+2. Mantén `pnpm-lock.yaml` como lockfile de cada paquete.
 3. Trabaja desde `backend/` o `FrontEnd/` para comandos de cada paquete.
 4. Lee las instrucciones `AGENTS.md` aplicables antes de modificar código.
 5. Conserva cambios del usuario y no reviertas archivos ajenos a la tarea.
@@ -44,32 +44,7 @@ Estas reglas son obligatorias para agentes de IA y colaboradores que modifiquen 
 
 ## Validación
 
-Después de editar, ejecuta primero una comprobación enfocada. Según el área:
-
-### Backend
-
-```bash
-cd backend
-pnpm run typecheck
-pnpm test
-pnpm run check
-```
-
-### FrontEnd
-
-```bash
-cd FrontEnd
-pnpm run typecheck
-pnpm run check
-pnpm run build
-```
-
-### Documentación o configuración
-
-```bash
-git diff --check
-pnpm run changelog
-```
+Después de editar, ejecuta primero una comprobación enfocada y luego los [checks del proyecto](../README.md#checks-y-contribuciones) que correspondan al cambio. Para documentación o configuración, comprueba el diff con `git diff --check`.
 
 Si una validación falla, corrige el mismo alcance y repite la comprobación antes de ampliar la investigación.
 

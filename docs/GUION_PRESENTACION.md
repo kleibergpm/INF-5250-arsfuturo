@@ -278,7 +278,7 @@
 - **Íconos**: `lucide-react`
 - **Gráficos**: `recharts` (contenedores responsivos y visualizaciones)
 - **Animaciones**: `framer-motion` (transiciones de pestañas y modales)
-- **Dev Server y Build**: `Node.js` + `npm`, `Vite` (HMR)
+- **Dev Server y Build**: `Node.js` + `pnpm`, `Vite` (HMR)
 - **Estructura del proyecto**: `src/App.jsx`, `src/index.css`, `tailwind.config.js`, `vite.config.js`
 - **Exportación de datos**: Utilidad `exportCsv` para descargas en `CSV`
 

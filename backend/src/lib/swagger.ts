@@ -13,6 +13,11 @@ const errorResponses = {
 	403: { description: "Sin permisos suficientes" },
 	422: { description: "Datos invalidos" },
 };
+const financialStateErrors = {
+	404: { description: "Recurso inexistente" },
+	409: { description: "Conflicto con el estado o referencia registrados" },
+	...errorResponses,
+};
 const jsonBody = (schema: Record<string, unknown>) => ({
 	required: true,
 	content: { "application/json": { schema } },
@@ -62,7 +67,11 @@ const crudPaths = (resource: string, schema: Record<string, unknown>) => ({
 		},
 	},
 	[`/api/${resource}/{id}`]: {
-		parameters: [uuidParameter],
+		parameters: [
+			resource === "polizas"
+				? { ...uuidParameter, schema: { type: "string", minLength: 2 } }
+				: uuidParameter,
+		],
 		get: {
 			tags: [resource],
 			summary: `Obtiene un elemento de ${resource}`,
@@ -82,6 +91,13 @@ const crudPaths = (resource: string, schema: Record<string, unknown>) => ({
 				200: okResponse,
 				404: { description: "No encontrado" },
 				...errorResponses,
+				...(resource === "reclamos" || resource === "polizas"
+					? {
+							409: {
+								description: "Conflicto con el estado actual del recurso",
+							},
+						}
+					: {}),
 			},
 		},
 		delete: {
@@ -92,6 +108,9 @@ const crudPaths = (resource: string, schema: Record<string, unknown>) => ({
 				200: okResponse,
 				404: { description: "No encontrado" },
 				...errorResponses,
+				...(resource === "reclamos"
+					? { 409: { description: "El reclamo ya fue decidido" } }
+					: {}),
 			},
 		},
 	},
@@ -117,6 +136,10 @@ const resourceSchemas = {
 		startDate: { type: "string", format: "date" },
 		endDate: { type: "string", format: "date" },
 		monthlyPremium: { type: "number" },
+		status: {
+			type: "string",
+			enum: ["ACTIVE", "IN_GRACE", "SUSPENDED", "EXPIRED"],
+		},
 	}),
 	afiliados: objectSchema({
 		name: { type: "string" },
@@ -124,6 +147,7 @@ const resourceSchemas = {
 		planId: { type: "string" },
 		startDate: { type: "string", format: "date" },
 		email: { type: "string", format: "email" },
+		status: { type: "string", enum: ["ACTIVE", "SUSPENDED", "INACTIVE"] },
 	}),
 	reclamos: objectSchema({
 		insuredId: { type: "string", format: "uuid" },
@@ -296,7 +320,7 @@ const spec = {
 			},
 			post: {
 				tags: ["autorizaciones"],
-				summary: "Crea una autorizacion",
+				summary: "Crea una autorización en revisión (PENDING)",
 				security: bearerSecurity,
 				requestBody: jsonBody(
 					objectSchema({
@@ -343,6 +367,7 @@ const spec = {
 			get: {
 				tags: ["servicios"],
 				summary: "Lista servicios medicos",
+				description: "Incluye paymentEligible, payableAmount y paymentStatus.",
 				security: bearerSecurity,
 				responses: { 200: okResponse, ...errorResponses },
 			},
@@ -371,6 +396,8 @@ const spec = {
 			post: {
 				tags: ["pagos"],
 				summary: "Emite un pago",
+				description:
+					"El importe debe ser igual al costo menos el copago. Los reintentos idénticos devuelven el pago guardado.",
 				security: bearerSecurity,
 				requestBody: jsonBody(
 					objectSchema({
@@ -380,7 +407,11 @@ const spec = {
 						method: { type: "string" },
 					}),
 				),
-				responses: { 201: okResponse, ...errorResponses },
+				responses: {
+					200: okResponse,
+					201: okResponse,
+					...financialStateErrors,
+				},
 			},
 		},
 		"/api/facturas": {
@@ -395,11 +426,13 @@ const spec = {
 			post: {
 				tags: ["facturas"],
 				summary: "Genera facturas",
+				description:
+					"Completa un mes YYYY-MM y devuelve todas sus facturas. El día 10 del período es el vencimiento.",
 				security: bearerSecurity,
 				requestBody: jsonBody(
 					objectSchema({ period: { type: "string", example: "2026-09" } }),
 				),
-				responses: { 201: okResponse, ...errorResponses },
+				responses: { 200: okResponse, 201: okResponse, ...errorResponses },
 			},
 		},
 		"/api/facturas/{id}/pagar": {
@@ -409,34 +442,34 @@ const spec = {
 				summary: "Marca una factura como pagada",
 				security: bearerSecurity,
 				requestBody: jsonBody(objectSchema({ reference: { type: "string" } })),
-				responses: { 200: okResponse, ...errorResponses },
+				responses: { 200: okResponse, ...financialStateErrors },
 			},
 		},
 		"/api/facturas/{id}/recordatorio": {
 			parameters: [uuidParameter],
 			patch: {
 				tags: ["facturas"],
-				summary: "Envia recordatorio de factura",
+				summary: "Registra el recordatorio de una factura impaga",
 				security: bearerSecurity,
-				responses: { 200: okResponse, ...errorResponses },
+				responses: { 200: okResponse, ...financialStateErrors },
 			},
 		},
 		"/api/facturas/{id}/gracia": {
 			parameters: [uuidParameter],
 			patch: {
 				tags: ["facturas"],
-				summary: "Pasa una factura a periodo de gracia",
+				summary: "Concede gracia a una factura vencida e impaga",
 				security: bearerSecurity,
-				responses: { 200: okResponse, ...errorResponses },
+				responses: { 200: okResponse, ...financialStateErrors },
 			},
 		},
 		"/api/facturas/{id}/suspender": {
 			parameters: [uuidParameter],
 			patch: {
 				tags: ["facturas"],
-				summary: "Suspende una factura",
+				summary: "Suspende la póliza vigente por una factura vencida e impaga",
 				security: bearerSecurity,
-				responses: { 200: okResponse, ...errorResponses },
+				responses: { 204: okResponse, ...financialStateErrors },
 			},
 		},
 		"/api/dashboard/resumen": {
@@ -452,6 +485,30 @@ const spec = {
 		...crudPaths("polizas", resourceSchemas.polizas),
 		...crudPaths("afiliados", resourceSchemas.afiliados),
 		...crudPaths("reclamos", resourceSchemas.reclamos),
+		...Object.fromEntries(
+			["aprobar", "rechazar"].map((action) => [
+				`/api/reclamos/{id}/${action}`,
+				{
+					parameters: [uuidParameter],
+					patch: {
+						tags: ["reclamos"],
+						summary:
+							action === "aprobar"
+								? "Aprueba un reclamo"
+								: "Rechaza un reclamo",
+						description:
+							"Solo Administración y Supervisión. Repetir la misma decisión devuelve el estado guardado.",
+						security: bearerSecurity,
+						responses: {
+							200: okResponse,
+							404: { description: "Reclamo no encontrado" },
+							409: { description: "El reclamo tiene una decisión distinta" },
+							...errorResponses,
+						},
+					},
+				},
+			]),
+		),
 		...crudPaths("notificaciones", resourceSchemas.notificaciones),
 	},
 };

@@ -1,14 +1,22 @@
+import { BusinessRuleError } from "../lib/business-rule-error.js";
 import { Prisma } from "../lib/generated/client/index.js";
-import { CedulaValidationUnavailableError } from "../Servicios/cedulaValidation.service.js";
-export function notFound(req, res) {
+import { log } from "../lib/logger.js";
+import { CedulaValidationUnavailableError } from "../services/cedula-validation.service.js";
+export function notFound(_req, res) {
 	res
 		.status(404)
 		.json({ error: "NOT_FOUND", message: "Recurso no encontrado" });
 }
 
-export function errorHandler(err, req, res, next) {
-	console.error(err);
-	if (res.headersSent) return next(err);
+export function errorHandler(err, _req, res, next) {
+	log("error", "http.error", { requestId: res.locals.requestId });
+	if (res.headersSent)
+		return next(new Error("Error después de enviar cabeceras"));
+	if (err instanceof BusinessRuleError)
+		return res.status(err.status).json({
+			error: err.status === 409 ? "CONFLICT" : "VALIDATION_ERROR",
+			message: err.message,
+		});
 	if (
 		err instanceof Prisma.PrismaClientKnownRequestError &&
 		err.code === "P2002"
