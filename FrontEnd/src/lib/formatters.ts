@@ -13,8 +13,11 @@ export function exportCsv(filename: string, rows: unknown[][]) {
 				.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
 				.join(","),
 		)
-		.join("\n");
-	const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+		.join("\r\n");
+	// Excel uses this directive to open columns regardless of the system delimiter.
+	const blob = new Blob([`\uFEFFsep=,\r\n${csv}`], {
+		type: "text/csv;charset=utf-8;",
+	});
 	const url = URL.createObjectURL(blob);
 	const link = document.createElement("a");
 	link.href = url;

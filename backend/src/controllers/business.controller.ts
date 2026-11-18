@@ -70,14 +70,20 @@ export class BusinessController {
 	};
 
 	decideAuthorization = (status) => async (req, res) => {
-		const row = await this.database.authorization.update({
-			where: { id: req.params.id },
-			data: { status },
-		});
-		await this.notifications.create({
-			type: status === "APPROVED" ? "success" : "error",
-			title: "Autorización procesada",
-			message: `Autorización ${row.id}: ${status}.`,
+		const row = await this.database.$transaction(async (transaction) => {
+			const authorization = await transaction.authorization.update({
+				where: { id: req.params.id },
+				data: { status },
+			});
+			await this.notifications.create(
+				{
+					type: status === "APPROVED" ? "success" : "error",
+					title: "Autorización procesada",
+					message: `Autorización ${authorization.id}: ${status}.`,
+				},
+				transaction,
+			);
+			return authorization;
 		});
 		res.json(row);
 	};

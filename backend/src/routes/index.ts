@@ -227,12 +227,14 @@ r.patch(
 	"/autorizaciones/:id/aprobar",
 	authenticate,
 	allow(...roles.review),
+	validate(uuid, "params"),
 	asyncHandler(businessController.decideAuthorization("APPROVED")),
 );
 r.patch(
 	"/autorizaciones/:id/rechazar",
 	authenticate,
 	allow(...roles.review),
+	validate(uuid, "params"),
 	asyncHandler(businessController.decideAuthorization("REJECTED")),
 );
 r.get(

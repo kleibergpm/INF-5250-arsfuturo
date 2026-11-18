@@ -361,10 +361,21 @@ export default function ARS_Futuro_App() {
 			alert("No tienes permisos para rechazar autorizaciones");
 			return;
 		}
-		await mutationsApi.rechazarAutorizacion(id);
-		setAutorizaciones((prev) =>
-			prev.map((a) => (a.id === id ? { ...a, estado: "Rechazada" } : a)),
-		);
+		try {
+			await mutationsApi.rechazarAutorizacion(id);
+			setAutorizaciones((prev) =>
+				prev.map((a) => (a.id === id ? { ...a, estado: "Rechazada" } : a)),
+			);
+		} catch (error) {
+			addNotification({
+				id: Date.now(),
+				type: "error",
+				title: "Error al rechazar la autorización",
+				message:
+					error.response?.data?.message ||
+					"No fue posible rechazar la autorización.",
+			});
+		}
 	};
 
 	const registrarReclamo = async ({ afiliadoId, proveedorId, monto }) => {
@@ -1422,7 +1433,7 @@ function NuevaAutorizacionModal({
 					/>
 				</div>
 			</div>
-			<div className="mt-4 flex justify-end gap-2">
+			<div className="mt-5 flex flex-wrap justify-end gap-3">
 				<Button variant="ghost" onClick={onClose}>
 					Cancelar
 				</Button>
@@ -1498,7 +1509,7 @@ function EditarAfiliadoModal({
 				</div>
 			</div>
 			<Divider />
-			<div className="flex justify-end gap-2">
+			<div className="mt-5 flex flex-wrap justify-end gap-3">
 				<Button variant="ghost" onClick={onClose}>
 					Cancelar
 				</Button>
@@ -1698,7 +1709,7 @@ function NuevoAfiliadoModal({
 				</div>
 			</div>
 			<Divider />
-			<div className="flex justify-end gap-2">
+			<div className="mt-5 flex flex-wrap justify-end gap-3">
 				<Button variant="ghost" onClick={onClose}>
 					Cancelar
 				</Button>
@@ -2152,7 +2163,7 @@ function RegistrarReclamoModal({
 					/>
 				</div>
 			</div>
-			<div className="mt-4 flex justify-end gap-2">
+			<div className="mt-5 flex flex-wrap justify-end gap-3">
 				<Button variant="ghost" onClick={onClose}>
 					Cancelar
 				</Button>
@@ -2418,8 +2429,8 @@ function ServiciosTab({
 				af?.nombre || "-",
 				pr?.nombre || "-",
 				s.descripcion,
-				currency(s.costo),
-				currency(s.copago ?? 0),
+				s.costo,
+				s.copago ?? 0,
 				s.estado,
 				s.autorizacionId ? String(s.autorizacionId) : "-",
 			]);
@@ -2662,7 +2673,7 @@ function RegistrarServicioModal({
 				</div>
 			</div>
 			<Divider />
-			<div className="flex justify-end gap-2">
+			<div className="mt-5 flex flex-wrap justify-end gap-3">
 				<Button variant="ghost" onClick={onClose}>
 					Cancelar
 				</Button>
@@ -2710,7 +2721,7 @@ function PagosTab({
 				formatDate(p.fecha),
 				pr?.nombre || "-",
 				String(p.servicioId),
-				currency(p.monto),
+				p.monto,
 				p.estado,
 				p.referenciaBanco,
 				p.metodo,
@@ -2947,7 +2958,7 @@ function EmitirPagoModal({
 				</div>
 			</div>
 			<Divider />
-			<div className="flex justify-end gap-2">
+			<div className="mt-5 flex flex-wrap justify-end gap-3">
 				<Button variant="ghost" onClick={onClose}>
 					Cancelar
 				</Button>
@@ -3014,7 +3025,7 @@ function FacturacionTab({
 				p?.empresa || "-",
 				formatDate(f.emision),
 				formatDate(f.vencimiento),
-				currency(f.monto),
+				f.monto,
 				f.estado,
 				f.fechaPago ? formatDate(f.fechaPago) : "-",
 				f.referencia || "-",
@@ -3234,7 +3245,7 @@ function RegistrarPagoPrimaModal({ open, onClose, factura, onRegistrarPago }) {
 				</div>
 			</div>
 			<Divider />
-			<div className="flex justify-end gap-2">
+			<div className="mt-5 flex flex-wrap justify-end gap-3">
 				<Button variant="ghost" onClick={onClose}>
 					Cancelar
 				</Button>
