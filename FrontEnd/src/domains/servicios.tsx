@@ -77,7 +77,7 @@ export function ServiciosTab({
 				s.autorizacionId ? String(s.autorizacionId) : "-",
 			]);
 		});
-		exportCsv("servicios.csv", rows);
+		exportCsv("Servicios", rows);
 	};
 
 	return (

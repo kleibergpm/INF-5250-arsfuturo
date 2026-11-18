@@ -320,7 +320,7 @@ const spec = {
 			},
 			post: {
 				tags: ["autorizaciones"],
-				summary: "Crea una autorizacion",
+				summary: "Crea una autorización en revisión (PENDING)",
 				security: bearerSecurity,
 				requestBody: jsonBody(
 					objectSchema({

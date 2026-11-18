@@ -28,7 +28,7 @@ const insuredStatusLabels: Record<string, string> = {
 	INACTIVE: "Inactivo",
 };
 const authorizationStatusLabels: Record<string, string> = {
-	PENDING: "Pendiente",
+	PENDING: "En revisión",
 	APPROVED: "Aprobada",
 	REJECTED: "Rechazada",
 };
