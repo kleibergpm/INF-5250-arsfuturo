@@ -117,7 +117,7 @@ export function ReclamosTab({
 								variant="ghost"
 								className="flex items-center justify-center flex-1 sm:flex-initial"
 								onClick={() =>
-									exportCsv("reclamaciones.csv", [
+									exportCsv("Reclamos", [
 										["ID", "Afiliado", "Proveedor", "Monto", "Estado", "Fecha"],
 										...data.map((r) => [
 											r.id,

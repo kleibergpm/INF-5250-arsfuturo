@@ -16,7 +16,7 @@ const csvCell = (value: unknown) =>
 		.replace(/\p{M}/gu, "")
 		.replace(/"/g, '""')}"`;
 
-export function exportCsv(filename: string, rows: unknown[][]) {
+export function exportCsv(windowName: string, rows: unknown[][]) {
 	const csv = rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
 	// Excel uses this directive to open columns regardless of the system delimiter.
 	const blob = new Blob([`\uFEFFsep=,\r\n${csv}`], {
@@ -25,7 +25,7 @@ export function exportCsv(filename: string, rows: unknown[][]) {
 	const url = URL.createObjectURL(blob);
 	const link = document.createElement("a");
 	link.href = url;
-	link.download = filename;
+	link.download = `Arsfuturo-${windowName}.csv`;
 	link.click();
 	URL.revokeObjectURL(url);
 }

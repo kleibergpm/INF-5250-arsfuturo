@@ -71,7 +71,7 @@ export function AutorizacionesTab({
 					>
 						<option>Todos</option>
 						<option>Aprobada</option>
-						<option>Pendiente</option>
+						<option>En revisión</option>
 						<option>Rechazada</option>
 					</Select>
 					<div className="relative w-full sm:w-auto flex-1 sm:flex-initial">
@@ -96,7 +96,7 @@ export function AutorizacionesTab({
 							variant="ghost"
 							className="flex items-center justify-center flex-1 sm:flex-initial"
 							onClick={() =>
-								exportCsv("autorizaciones.csv", [
+								exportCsv("Autorizaciones", [
 									[
 										"ID",
 										"Afiliado",
@@ -151,7 +151,7 @@ export function AutorizacionesTab({
 											color={
 												a.estado === "Aprobada"
 													? "green"
-													: a.estado === "Pendiente"
+													: a.estado === "En revisión"
 														? "amber"
 														: "red"
 											}

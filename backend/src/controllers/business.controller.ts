@@ -107,7 +107,7 @@ export class BusinessController {
 				providerId,
 				procedure,
 				copay: eligible ? insured.plan.consultationCopay : 0,
-				status: eligible ? "APPROVED" : "PENDING",
+				status: "PENDING",
 			},
 			include: { insured: true, provider: true },
 		});

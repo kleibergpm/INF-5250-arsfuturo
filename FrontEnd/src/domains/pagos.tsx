@@ -61,7 +61,7 @@ export function PagosTab({
 				p.metodo,
 			]);
 		});
-		exportCsv("pagos.csv", rows);
+		exportCsv("Pagos", rows);
 	};
 
 	return (

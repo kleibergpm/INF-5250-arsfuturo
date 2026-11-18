@@ -3,7 +3,13 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { database, transaction } = vi.hoisted(() => ({
-	database: { $transaction: vi.fn() },
+	database: {
+		$transaction: vi.fn(),
+		insured: { findUnique: vi.fn() },
+		provider: { findUnique: vi.fn() },
+		authorization: { create: vi.fn() },
+		notification: { create: vi.fn() },
+	},
 	transaction: {
 		authorization: { update: vi.fn() },
 		notification: { create: vi.fn() },
@@ -25,6 +31,25 @@ beforeEach(() => {
 	database.$transaction.mockImplementation((operation) =>
 		operation(transaction),
 	);
+});
+
+it("crea en revisión una autorización cubierta y conserva el copago", async () => {
+	database.insured.findUnique.mockResolvedValue({
+		status: "ACTIVE",
+		plan: { coverage: { consultas: true }, consultationCopay: 125 },
+	});
+	database.provider.findUnique.mockResolvedValue({ id });
+	database.authorization.create.mockImplementation(async ({ data }) => ({
+		id,
+		...data,
+	}));
+
+	const result = await request(app)
+		.post("/api/autorizaciones")
+		.set("Authorization", bearer("AGENT"))
+		.send({ insuredId: id, providerId: id, procedure: "Consulta general" })
+		.expect(201);
+	expect(result.body).toMatchObject({ status: "PENDING", copay: 125 });
 });
 
 describe("rechazo de autorizaciones", () => {

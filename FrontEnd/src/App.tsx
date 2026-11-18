@@ -62,6 +62,7 @@ import {
 	toServicePayload,
 } from "./api/adapters";
 import { authApi, mutationsApi, resourcesApi } from "./api/client";
+import { registrationFeedback } from "./api/registration-feedback";
 import { AppHeader, AppNavigation } from "./components/AppChrome";
 import {
 	Badge,
@@ -708,12 +709,20 @@ export default function ARS_Futuro_App() {
 			setLoginForm({ usuario: registerForm.usuario, password: "" });
 			setRegisterForm({ usuario: "", password: "", nombre: "", cedula: "" });
 			setRegistering(false);
-			alert("Registro completado. Ya puedes iniciar sesión.");
+			addNotification({
+				type: "success",
+				title: "Registro completado",
+				message: "Ya puedes iniciar sesión con tu usuario.",
+			});
 		} catch (error) {
-			const message =
-				error.response?.data?.message || "No fue posible completar el registro";
-			setLoginError(message);
-			if (error.response?.status === 400) alert("La cédula no es válida");
+			addNotification({
+				type: "error",
+				title: "No se pudo completar el registro",
+				message: registrationFeedback(
+					error,
+					"Revisa los datos e inténtalo de nuevo.",
+				),
+			});
 		} finally {
 			setLoginLoading(false);
 		}
@@ -734,6 +743,10 @@ export default function ARS_Futuro_App() {
 	if (!isAuthenticated) {
 		return (
 			<div className="app-shell min-h-screen w-full px-4 flex items-center justify-center">
+				<NotificationContainer
+					notifications={notifications}
+					onRemove={removeNotification}
+				/>
 				<Card className="w-full max-w-md !border-[var(--border)] !bg-[var(--surface-solid)]/90 p-7 sm:p-9">
 					<div className="text-center mb-8">
 						<div className="mx-auto mb-5 grid h-16 w-16 place-items-center overflow-hidden rounded-2xl bg-[var(--accent)] shadow-[0_12px_24px_var(--accent-glow)]">
@@ -1132,7 +1145,7 @@ export default function ARS_Futuro_App() {
 												variant="ghost"
 												className="flex items-center justify-center pt-1"
 												onClick={() =>
-													exportCsv("afiliados.csv", [
+													exportCsv("Afiliados", [
 														[
 															"ID",
 															"Nombre",
@@ -1170,7 +1183,6 @@ export default function ARS_Futuro_App() {
 										onClose={() => setOpenNuevoAfiliado(false)}
 										planes={planes}
 										crearAfiliado={crearAfiliado}
-										addNotification={addNotification}
 									/>
 									<div className="overflow-x-auto">
 										<table className="data-table w-full text-sm min-w-[800px]">

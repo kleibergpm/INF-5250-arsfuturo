@@ -1,7 +1,8 @@
 import { AnimatePresence } from "framer-motion";
 import { CheckCircle2, Plus, User } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Afiliado, Plan, Proveedor } from "../api/adapters";
+import { registrationFeedback } from "../api/registration-feedback";
 import { Button, Input, Modal, ModalActions, Select } from "../components/ui";
 import { NuevaAutorizacionModal } from "./autorizaciones";
 import type {
@@ -156,28 +157,34 @@ export function NuevoAfiliadoModal({
 	onClose,
 	planes = [],
 	crearAfiliado,
-	addNotification,
 }: {
 	open: boolean;
 	onClose: () => void;
 	planes?: Plan[];
 	crearAfiliado: (input: NuevoAfiliadoInput) => Promise<Afiliado>;
-	addNotification: Notify;
 }) {
 	const [nombre, setNombre] = useState("");
 	const [cedula, setCedula] = useState("");
-	const [plan, setPlan] = useState("BASICO");
+	const planInicial =
+		planes.find((item) => item.id === "BASICO")?.id ?? planes[0]?.id ?? "";
+	const [plan, setPlan] = useState(planInicial);
 	const [estado, setEstado] = useState("Activo");
 	const [desde, setDesde] = useState(new Date().toISOString().slice(0, 10));
 	const [nacimiento, setNacimiento] = useState("");
 	const [telefono, setTelefono] = useState("");
 	const [correo, setCorreo] = useState("");
 	const [dependientes, setDependientes] = useState(0);
+	const [error, setError] = useState("");
+	const [guardando, setGuardando] = useState(false);
+	const errorRef = useRef<HTMLParagraphElement>(null);
+	useEffect(() => {
+		if (error) errorRef.current?.focus();
+	}, [error]);
 
 	const limpiar = () => {
 		setNombre("");
 		setCedula("");
-		setPlan("BASICO");
+		setPlan(planInicial);
 		setEstado("Activo");
 		setDesde(new Date().toISOString().slice(0, 10));
 		setNacimiento("");
@@ -187,32 +194,46 @@ export function NuevoAfiliadoModal({
 	};
 
 	const crear = async () => {
-		if (!nombre || !cedula || !plan) return;
-		const nuevo = await crearAfiliado({
-			nombre,
-			cedula,
-			plan,
-			estado,
-			desde,
-			nacimiento,
-			telefono,
-			correo,
-			dependientes,
-		});
-		if (!nuevo) return;
-		onClose?.();
-		setTimeout(() => {
-			addNotification({
-				type: "success",
-				title: "Afiliado creado",
-				message: `${nuevo.nombre} agregado con ID ${nuevo.id}.`,
+		if (guardando) return;
+		setError("");
+		setGuardando(true);
+		try {
+			await crearAfiliado({
+				nombre,
+				cedula,
+				plan,
+				estado,
+				desde,
+				nacimiento,
+				telefono,
+				correo,
+				dependientes,
 			});
-		}, 50);
-		limpiar();
+			onClose();
+			limpiar();
+		} catch (cause) {
+			setError(
+				registrationFeedback(
+					cause,
+					"No se pudo crear el afiliado. Revisa los datos e inténtalo de nuevo.",
+				),
+			);
+		} finally {
+			setGuardando(false);
+		}
 	};
 
 	return (
-		<Modal open={open} onClose={onClose} title="Nuevo afiliado">
+		<Modal
+			open={open}
+			onClose={() => {
+				if (!guardando) {
+					setError("");
+					onClose();
+				}
+			}}
+			title="Nuevo afiliado"
+		>
 			<form
 				onSubmit={(event) => {
 					event.preventDefault();
@@ -350,17 +371,35 @@ export function NuevoAfiliadoModal({
 						/>
 					</div>
 				</div>
+				{error && (
+					<p
+						ref={errorRef}
+						tabIndex={-1}
+						role="alert"
+						className="mt-3 rounded-lg tone-error p-3"
+					>
+						{error}
+					</p>
+				)}
 				<ModalActions>
-					<Button variant="ghost" onClick={onClose}>
+					<Button
+						variant="ghost"
+						onClick={() => {
+							setError("");
+							onClose();
+						}}
+						disabled={guardando}
+					>
 						Cancelar
 					</Button>
 					<Button
 						variant="success"
 						className="flex items-center justify-center"
 						type="submit"
+						disabled={guardando}
 					>
 						<CheckCircle2 className="w-4 h-4 mr-1" />
-						Crear afiliado
+						{guardando ? "Guardando…" : "Crear afiliado"}
 					</Button>
 				</ModalActions>
 			</form>

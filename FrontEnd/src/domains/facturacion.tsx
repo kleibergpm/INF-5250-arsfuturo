@@ -101,7 +101,7 @@ export function FacturacionTab({
 				f.recordatorioEnviado ? "Sí" : "No",
 			]);
 		});
-		exportCsv("facturas_polizas.csv", rows);
+		exportCsv("Facturacion", rows);
 	};
 
 	return (
@@ -110,13 +110,13 @@ export function FacturacionTab({
 			animate={{ opacity: 1, y: 0 }}
 			className="space-y-4"
 		>
-			<div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-				<div className="flex items-center gap-2">
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<div className="flex w-full min-w-0 items-center gap-2 mobile-l:w-auto">
 					<Select
 						aria-label="Filtrar factura por período"
 						value={filtroPeriodo}
 						onChange={setFiltroPeriodo}
-						className="w-40"
+						className="min-w-0 flex-1 sm:w-40"
 					>
 						<option value="todos">Todos los meses</option>
 						{periodos.map((per) => (
@@ -129,7 +129,7 @@ export function FacturacionTab({
 						aria-label="Filtrar factura por estado"
 						value={filtroEstado}
 						onChange={setFiltroEstado}
-						className="w-40"
+						className="min-w-0 flex-1 sm:w-40"
 					>
 						<option value="todos">Todos los estados</option>
 						<option>Pendiente</option>
@@ -138,21 +138,32 @@ export function FacturacionTab({
 						<option>Pagada</option>
 					</Select>
 				</div>
-				<div className="flex items-center gap-2">
+				<div className="flex w-full min-w-0 flex-nowrap items-center gap-2 mobile-l:w-auto">
 					<Button
 						variant="ghost"
+						size="sm"
 						onClick={exportar}
-						className="flex items-center"
+						aria-label="Exportar CSV"
+						className="flex flex-1 items-center justify-center whitespace-nowrap"
 					>
-						<FileDown className="w-4 h-4 mr-1" /> Exportar CSV
+						<FileDown className="mr-1 hidden h-4 w-4 mobile-m:block" />
+						<span>
+							Exportar<span className="hidden mobile-m:inline"> CSV</span>
+						</span>
 					</Button>
 					<Button
 						variant="primary"
+						size="sm"
 						onClick={() => ejecutar(onGenerarMes)}
 						disabled={procesando}
-						className="flex items-center"
+						aria-label="Generar facturas del mes"
+						className="flex flex-1 items-center justify-center whitespace-nowrap"
 					>
-						<RefreshCw className="w-4 h-4 mr-1" /> Generar facturas del mes
+						<RefreshCw className="mr-1 hidden h-4 w-4 mobile-m:block" />
+						<span>
+							Generar facturas
+							<span className="hidden mobile-m:inline"> del mes</span>
+						</span>
 					</Button>
 				</div>
 			</div>
@@ -199,7 +210,7 @@ export function FacturacionTab({
 											</Badge>
 										</td>
 										<td className="py-2 pr-2">
-											<div className="flex flex-wrap gap-2">
+											<div className="flex flex-nowrap gap-2 whitespace-nowrap">
 												{f.estado !== "Pagada" && (
 													<Button
 														variant="primary"

@@ -24,14 +24,19 @@ const authBody = z.object({
 	username: z.string().min(3),
 	password: z.string().min(6),
 });
+const nationalId = z
+	.string()
+	.trim()
+	.transform((value) => value.replace(/-/g, ""))
+	.pipe(z.string().regex(/^\d{11}$/, "La cédula debe tener 11 dígitos"));
 const policyDate = z
 	.union([z.iso.date(), z.iso.datetime({ offset: true })])
 	.pipe(z.coerce.date());
 const schemas = {
 	insured: z.object({
-		name: z.string().min(2),
-		nationalId: z.string().min(8),
-		planId: z.string(),
+		name: z.string().trim().min(2),
+		nationalId,
+		planId: z.string().trim().min(1),
 		policyId: z.string().optional().nullable(),
 		status: z.enum(["ACTIVE", "SUSPENDED", "INACTIVE"]).optional(),
 		startDate: z.coerce.date(),
@@ -93,11 +98,7 @@ r.post(
 	validate(
 		authBody.extend({
 			name: z.string().trim().min(2).max(120),
-			nationalId: z
-				.string()
-				.trim()
-				.transform((value) => value.replace(/-/g, ""))
-				.pipe(z.string().regex(/^\d{11}$/, "La cédula debe tener 11 dígitos")),
+			nationalId,
 			password: z.string().min(6).max(72),
 		}),
 	),
@@ -193,7 +194,7 @@ resource(
 			if (!(await validateCedula(req.body.nationalId)))
 				return res.status(422).json({
 					error: "INVALID_CEDULA",
-					message: "La cedula indicada no es valida",
+					message: "La cédula indicada no es válida",
 				});
 			next();
 		},

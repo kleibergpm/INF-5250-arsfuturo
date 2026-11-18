@@ -175,6 +175,25 @@ describe("SCRUM-39, SCRUM-41 y SCRUM-44 · Afiliados, pólizas y proveedores", (
 		}
 	});
 
+	it("identifica los campos inválidos en el alta de afiliados", async () => {
+		const { body } = await request(app)
+			.post("/api/afiliados")
+			.set("Authorization", auth("AGENT"))
+			.send({
+				name: "QA",
+				nationalId: "123",
+				planId: "",
+				email: "correo",
+				startDate: "2024-01-01",
+			})
+			.expect(422);
+		expect(body.details.fieldErrors).toMatchObject({
+			nationalId: expect.any(Array),
+			planId: expect.any(Array),
+			email: expect.any(Array),
+		});
+	});
+
 	it("valida la fecha de alta y combina las ediciones parciales con la vigencia guardada", async () => {
 		const { startDate, endDate } = policy;
 		const stored = {
