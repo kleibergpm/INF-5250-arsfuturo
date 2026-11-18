@@ -1,6 +1,6 @@
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { FileDown, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type {
 	Afiliado,
 	Autorizacion,
@@ -8,6 +8,7 @@ import type {
 	Servicio,
 } from "../api/adapters";
 import {
+	ActionConfirmation,
 	Badge,
 	Button,
 	Card,
@@ -171,17 +172,19 @@ export function ServiciosTab({
 				</div>
 			</Card>
 
-			{open && (
-				<RegistrarServicioModal
-					open={open}
-					onClose={() => setOpen(false)}
-					afiliados={afiliados}
-					proveedores={proveedores}
-					autorizaciones={autorizaciones}
-					onRegistrar={onRegistrar}
-					addNotification={addNotification}
-				/>
-			)}
+			<AnimatePresence>
+				{open && (
+					<RegistrarServicioModal
+						open={open}
+						onClose={() => setOpen(false)}
+						afiliados={afiliados}
+						proveedores={proveedores}
+						autorizaciones={autorizaciones}
+						onRegistrar={onRegistrar}
+						addNotification={addNotification}
+					/>
+				)}
+			</AnimatePresence>
 		</motion.div>
 	);
 }
@@ -213,6 +216,9 @@ function RegistrarServicioModal({
 	const [costo, setCosto] = useState("1000");
 	const [autorizacionId, setAutorizacionId] = useState("");
 	const [registrando, setRegistrando] = useState(false);
+	const [confirmando, setConfirmando] = useState(false);
+	const [errorServicio, setErrorServicio] = useState("");
+	const servicioGuardado = useRef(false);
 
 	const autorizDelAfiliado = useMemo(() => {
 		return autorizaciones.filter(
@@ -239,135 +245,157 @@ function RegistrarServicioModal({
 				title: "Servicio registrado",
 				message: `Se registró servicio para afiliado ${afiliados.find((a) => String(a.id) === afiliadoId)?.nombre}.`,
 			});
-			onClose();
+			servicioGuardado.current = true;
 		} catch (error) {
-			addNotification({
-				type: "error",
-				title: "No se pudo registrar el servicio",
-				message: error.response?.data?.message || "Intenta de nuevo.",
-			});
+			setErrorServicio(
+				error.response?.data?.message ||
+					"No se pudo registrar el servicio. Intenta de nuevo.",
+			);
 		} finally {
 			setRegistrando(false);
 		}
 	};
 
 	return (
-		<Modal open={open} onClose={onClose} title="Registrar servicio médico">
-			<form
-				onSubmit={(event) => {
-					event.preventDefault();
-					void registrar();
+		<>
+			<Modal open={open} onClose={onClose} title="Registrar servicio médico">
+				<form
+					onSubmit={(event) => {
+						event.preventDefault();
+						setErrorServicio("");
+						setConfirmando(true);
+					}}
+				>
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+						<div>
+							<label
+								className="text-xs text-[var(--text-muted)]"
+								htmlFor="registrar-servicio-medico-afiliado"
+							>
+								Afiliado
+							</label>
+							<Select
+								id="registrar-servicio-medico-afiliado"
+								value={afiliadoId}
+								onChange={(id) => {
+									setAfiliadoId(id);
+									setAutorizacionId("");
+								}}
+							>
+								{afiliados.map((a) => (
+									<option key={a.id} value={String(a.id)}>
+										{a.nombre}
+									</option>
+								))}
+							</Select>
+						</div>
+						<div>
+							<label
+								className="text-xs text-[var(--text-muted)]"
+								htmlFor="registrar-servicio-medico-proveedor"
+							>
+								Proveedor
+							</label>
+							<Select
+								id="registrar-servicio-medico-proveedor"
+								value={proveedorId}
+								onChange={(id) => {
+									setProveedorId(id);
+									setAutorizacionId("");
+								}}
+							>
+								{proveedores.map((p) => (
+									<option key={p.id} value={String(p.id)}>
+										{p.nombre}
+									</option>
+								))}
+							</Select>
+						</div>
+						<div className="sm:col-span-2">
+							<label
+								className="text-xs text-[var(--text-muted)]"
+								htmlFor="registrar-servicio-medico-descripcion"
+							>
+								Descripción
+							</label>
+							<Input
+								id="registrar-servicio-medico-descripcion"
+								value={descripcion}
+								onChange={setDescripcion}
+								placeholder="Ej. Consulta general"
+							/>
+						</div>
+						<div>
+							<label
+								className="text-xs text-[var(--text-muted)]"
+								htmlFor="registrar-servicio-medico-costo"
+							>
+								Costo
+							</label>
+							<Input
+								id="registrar-servicio-medico-costo"
+								type="number"
+								value={costo}
+								onChange={setCosto}
+							/>
+						</div>
+						<div>
+							<label
+								className="text-xs text-[var(--text-muted)]"
+								htmlFor="registrar-servicio-medico-autorizacion-opcional"
+							>
+								Autorización (opcional)
+							</label>
+							<Select
+								id="registrar-servicio-medico-autorizacion-opcional"
+								value={autorizacionId}
+								onChange={setAutorizacionId}
+							>
+								<option value="">Sin autorización</option>
+								{autorizDelAfiliado.map((a) => (
+									<option key={a.id} value={String(a.id)}>
+										{a.id} - {a.procedimiento}
+									</option>
+								))}
+							</Select>
+						</div>
+					</div>
+					{errorServicio && (
+						<p className="mt-3 rounded-lg tone-error p-2" role="alert">
+							{errorServicio}
+						</p>
+					)}
+					<ModalActions>
+						<Button variant="ghost" onClick={onClose}>
+							Cancelar
+						</Button>
+						<Button
+							variant="primary"
+							type="submit"
+							disabled={
+								registrando ||
+								!afiliadoId ||
+								!proveedorId ||
+								!(Number(costo) > 0)
+							}
+						>
+							Registrar
+						</Button>
+					</ModalActions>
+				</form>
+			</Modal>
+			<ActionConfirmation
+				open={confirmando}
+				onClose={() => setConfirmando(false)}
+				onAfterClose={() => {
+					if (servicioGuardado.current) requestAnimationFrame(onClose);
 				}}
+				title="Confirmar registro de servicio"
+				label="Confirmar registro"
+				onConfirm={registrar}
 			>
-				<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-					<div>
-						<label
-							className="text-xs text-[var(--text-muted)]"
-							htmlFor="registrar-servicio-medico-afiliado"
-						>
-							Afiliado
-						</label>
-						<Select
-							id="registrar-servicio-medico-afiliado"
-							value={afiliadoId}
-							onChange={(id) => {
-								setAfiliadoId(id);
-								setAutorizacionId("");
-							}}
-						>
-							{afiliados.map((a) => (
-								<option key={a.id} value={String(a.id)}>
-									{a.nombre}
-								</option>
-							))}
-						</Select>
-					</div>
-					<div>
-						<label
-							className="text-xs text-[var(--text-muted)]"
-							htmlFor="registrar-servicio-medico-proveedor"
-						>
-							Proveedor
-						</label>
-						<Select
-							id="registrar-servicio-medico-proveedor"
-							value={proveedorId}
-							onChange={(id) => {
-								setProveedorId(id);
-								setAutorizacionId("");
-							}}
-						>
-							{proveedores.map((p) => (
-								<option key={p.id} value={String(p.id)}>
-									{p.nombre}
-								</option>
-							))}
-						</Select>
-					</div>
-					<div className="sm:col-span-2">
-						<label
-							className="text-xs text-[var(--text-muted)]"
-							htmlFor="registrar-servicio-medico-descripcion"
-						>
-							Descripción
-						</label>
-						<Input
-							id="registrar-servicio-medico-descripcion"
-							value={descripcion}
-							onChange={setDescripcion}
-							placeholder="Ej. Consulta general"
-						/>
-					</div>
-					<div>
-						<label
-							className="text-xs text-[var(--text-muted)]"
-							htmlFor="registrar-servicio-medico-costo"
-						>
-							Costo
-						</label>
-						<Input
-							id="registrar-servicio-medico-costo"
-							type="number"
-							value={costo}
-							onChange={setCosto}
-						/>
-					</div>
-					<div>
-						<label
-							className="text-xs text-[var(--text-muted)]"
-							htmlFor="registrar-servicio-medico-autorizacion-opcional"
-						>
-							Autorización (opcional)
-						</label>
-						<Select
-							id="registrar-servicio-medico-autorizacion-opcional"
-							value={autorizacionId}
-							onChange={setAutorizacionId}
-						>
-							<option value="">Sin autorización</option>
-							{autorizDelAfiliado.map((a) => (
-								<option key={a.id} value={String(a.id)}>
-									{a.id} - {a.procedimiento}
-								</option>
-							))}
-						</Select>
-					</div>
-				</div>
-				<ModalActions>
-					<Button variant="ghost" onClick={onClose}>
-						Cancelar
-					</Button>
-					<Button
-						variant="primary"
-						type="submit"
-						disabled={
-							registrando || !afiliadoId || !proveedorId || !(Number(costo) > 0)
-						}
-					>
-						Registrar
-					</Button>
-				</ModalActions>
-			</form>
-		</Modal>
+				¿Registrar «{descripcion}» por {currency(Number(costo))}?
+			</ActionConfirmation>
+		</>
 	);
 }

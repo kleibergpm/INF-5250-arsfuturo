@@ -351,56 +351,43 @@ export default function ARS_Futuro_App() {
 		return porPlan;
 	}, [autorizaciones, afiliados, planes]);
 
-	const aprobarAut = async (id: string) => {
-		// Solo administradores y supervisores pueden aprobar autorizaciones
+	const decidirAutorizacion = async (
+		id: string,
+		accion: "aprobar" | "rechazar",
+	) => {
 		if (
 			!currentUser ||
 			!["Administrador", "Supervisor"].includes(currentUser.rol)
 		) {
-			alert("No tienes permisos para aprobar autorizaciones");
-			return;
-		}
-		try {
-			const { estado } = adaptAutorizacion(
-				await mutationsApi.aprobarAutorizacion(id),
-			);
-			setAutorizaciones((prev) =>
-				prev.map((a) => (a.id === id ? { ...a, estado } : a)),
-			);
-		} catch (error) {
 			addNotification({
 				type: "error",
-				title: "Error al aprobar la autorización",
-				message:
-					error.response?.data?.message ||
-					"No fue posible aprobar la autorización.",
+				title: "Acción no permitida",
+				message: `No tienes permisos para ${accion} autorizaciones.`,
 			});
-		}
-	};
-	const rechazarAut = async (id: string) => {
-		// Solo administradores y supervisores pueden rechazar autorizaciones
-		if (
-			!currentUser ||
-			!["Administrador", "Supervisor"].includes(currentUser.rol)
-		) {
-			alert("No tienes permisos para rechazar autorizaciones");
 			return;
 		}
+		const rechazar = accion === "rechazar";
 		try {
 			const { estado } = adaptAutorizacion(
-				await mutationsApi.rechazarAutorizacion(id),
+				await (rechazar
+					? mutationsApi.rechazarAutorizacion
+					: mutationsApi.aprobarAutorizacion)(id),
 			);
 			setAutorizaciones((prev) =>
 				prev.map((a) => (a.id === id ? { ...a, estado } : a)),
 			);
+			addNotification({
+				type: "success",
+				title: rechazar ? "Autorización rechazada" : "Autorización aprobada",
+				message: "Se guardó la decisión.",
+			});
 		} catch (error) {
 			addNotification({
-				id: Date.now(),
 				type: "error",
-				title: "Error al rechazar la autorización",
+				title: `Error al ${accion} la autorización`,
 				message:
 					error.response?.data?.message ||
-					"No fue posible rechazar la autorización.",
+					`No fue posible ${accion} la autorización.`,
 			});
 		}
 	};
@@ -428,6 +415,11 @@ export default function ARS_Futuro_App() {
 					reclamo.id === id ? { ...reclamo, estado } : reclamo,
 				),
 			);
+			addNotification({
+				type: "success",
+				title: accion === "aprobar" ? "Reclamo aprobado" : "Reclamo rechazado",
+				message: "Se guardó la decisión.",
+			});
 		} catch (error) {
 			addNotification({
 				type: "error",
@@ -1250,8 +1242,8 @@ export default function ARS_Futuro_App() {
 								autorizaciones={autorizaciones}
 								afiliados={afiliados}
 								proveedores={proveedores}
-								aprobarAut={aprobarAut}
-								rechazarAut={rechazarAut}
+								aprobarAut={(id) => decidirAutorizacion(id, "aprobar")}
+								rechazarAut={(id) => decidirAutorizacion(id, "rechazar")}
 								puedeDecidir={currentUser?.rol === "Administrador"}
 								crearAutorizacion={crearAutorizacion}
 								addNotification={addNotification}

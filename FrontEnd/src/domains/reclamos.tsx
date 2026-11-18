@@ -1,9 +1,10 @@
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { CheckCircle2, FileDown, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { Afiliado, Proveedor, Reclamo } from "../api/adapters";
 import {
+	ActionConfirmation,
 	Badge,
 	Button,
 	Card,
@@ -40,19 +41,12 @@ export function ReclamosTab({
 	const [estado, setEstado] = useState("Todos");
 	const [q, setQ] = useState("");
 	const [open, setOpen] = useState(false);
-	const [decidiendo, setDecidiendo] = useState(false);
+	const [decision, setDecision] = useState<{
+		reclamo: Reclamo;
+		accion: "aprobar" | "rechazar";
+	} | null>(null);
+	const rechazar = decision?.accion === "rechazar";
 	const g = graficaDe(tema);
-
-	const decidir = async (id: string, accion: "aprobar" | "rechazar") => {
-		if (!window.confirm(`¿Confirmas que quieres ${accion} este reclamo?`))
-			return;
-		setDecidiendo(true);
-		try {
-			await onDecidir(id, accion);
-		} finally {
-			setDecidiendo(false);
-		}
-	};
 
 	const data = useMemo(() => {
 		return reclamaciones
@@ -100,7 +94,7 @@ export function ReclamosTab({
 							<option>Aprobada</option>
 							<option>Rechazada</option>
 						</Select>
-						<div className="relative w-full sm:w-auto flex-1 sm:flex-initial">
+						<div className="relative w-full mobile-l:w-80 lg:w-96">
 							<Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-faint)]" />
 							<Input
 								aria-label="Buscar reclamo por nombre o ID"
@@ -191,15 +185,17 @@ export function ReclamosTab({
 												{r.estado === "En revisión" && (
 													<div className="flex flex-wrap gap-2">
 														<Button
-															disabled={decidiendo}
-															onClick={() => decidir(r.id, "aprobar")}
+															onClick={() =>
+																setDecision({ reclamo: r, accion: "aprobar" })
+															}
 														>
 															Aprobar
 														</Button>
 														<Button
 															variant="ghost"
-															disabled={decidiendo}
-															onClick={() => decidir(r.id, "rechazar")}
+															onClick={() =>
+																setDecision({ reclamo: r, accion: "rechazar" })
+															}
 														>
 															Rechazar
 														</Button>
@@ -253,16 +249,34 @@ export function ReclamosTab({
 				</div>
 			</div>
 
-			{canRegister && open && (
-				<RegistrarReclamoModal
-					open={open}
-					onClose={() => setOpen(false)}
-					afiliados={afiliados}
-					proveedores={proveedores}
-					onRegistrar={onRegistrar}
-					addNotification={addNotification}
-				/>
-			)}
+			<ActionConfirmation
+				open={decision !== null}
+				onClose={() => setDecision(null)}
+				title={rechazar ? "Rechazar reclamo" : "Aprobar reclamo"}
+				label={rechazar ? "Rechazar" : "Aprobar"}
+				variant={rechazar ? "danger" : "success"}
+				onConfirm={async () => {
+					if (decision) await onDecidir(decision.reclamo.id, decision.accion);
+				}}
+			>
+				¿Confirmas que quieres {decision?.accion} este reclamo
+				{decision?.reclamo.afiliadoNombre
+					? ` de ${decision.reclamo.afiliadoNombre}`
+					: ""}
+				?
+			</ActionConfirmation>
+			<AnimatePresence>
+				{canRegister && open && (
+					<RegistrarReclamoModal
+						open={open}
+						onClose={() => setOpen(false)}
+						afiliados={afiliados}
+						proveedores={proveedores}
+						onRegistrar={onRegistrar}
+						addNotification={addNotification}
+					/>
+				)}
+			</AnimatePresence>
 		</motion.div>
 	);
 }

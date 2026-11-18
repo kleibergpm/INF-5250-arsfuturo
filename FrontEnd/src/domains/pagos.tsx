@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { FileDown, Wallet } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { Pago, Proveedor, Servicio } from "../api/adapters";
@@ -149,16 +149,18 @@ export function PagosTab({
 				</div>
 			</Card>
 
-			{open && (
-				<EmitirPagoModal
-					open={open}
-					onClose={() => setOpen(false)}
-					servicios={servicios}
-					proveedores={proveedores}
-					onEmitirPago={onEmitirPago}
-					addNotification={addNotification}
-				/>
-			)}
+			<AnimatePresence>
+				{open && (
+					<EmitirPagoModal
+						open={open}
+						onClose={() => setOpen(false)}
+						servicios={servicios}
+						proveedores={proveedores}
+						onEmitirPago={onEmitirPago}
+						addNotification={addNotification}
+					/>
+				)}
+			</AnimatePresence>
 		</motion.div>
 	);
 }
@@ -247,10 +249,16 @@ function EmitirPagoModal({
 							onChange={setServicioId}
 						>
 							{pendientes.map((s) => (
-								<option
-									key={s.id}
-									value={String(s.id)}
-								>{`${s.id} - ${s.descripcion} (${formatDate(s.fecha)})`}</option>
+								<option key={s.id} value={String(s.id)}>
+									{[
+										s.descripcion,
+										proveedores.find((p) => p.id === s.proveedorId)?.nombre,
+										formatDate(s.fecha),
+										currency(s.montoPagable),
+									]
+										.filter(Boolean)
+										.join(" — ")}
+								</option>
 							))}
 						</Select>
 						{!pendientes.length && (
