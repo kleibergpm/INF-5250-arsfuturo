@@ -127,6 +127,8 @@ export const adaptReclamo = (item: ApiRecord): AdaptedRecord => ({
 	id: id(item.id),
 	afiliadoId: item.insuredId || (item.insured as ApiRecord | undefined)?.id,
 	proveedorId: item.providerId || (item.provider as ApiRecord | undefined)?.id,
+	afiliadoNombre: (item.insured as ApiRecord | undefined)?.name,
+	proveedorNombre: (item.provider as ApiRecord | undefined)?.name,
 	monto: money(item.amount),
 	estado: displayClaimStatus(item.status),
 	fecha: item.date,

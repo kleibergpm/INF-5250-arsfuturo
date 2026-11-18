@@ -71,6 +71,7 @@ export const resourcesApi = {
 	autorizaciones: () => unwrap<ApiRecord[]>(api.get("/autorizaciones")),
 	reclamos: () => unwrap<ApiRecord[]>(api.get("/reclamos")),
 	polizas: () => unwrap<ApiRecord[]>(api.get("/polizas")),
+	poliza: (id: string) => unwrap<ApiRecord>(api.get(`/polizas/${idPath(id)}`)),
 	servicios: () => unwrap<ApiRecord[]>(api.get("/servicios")),
 	pagos: () => unwrap<ApiRecord[]>(api.get("/pagos")),
 	facturas: () => unwrap<ApiRecord[]>(api.get("/facturas")),
@@ -90,6 +91,8 @@ export const mutationsApi = {
 		unwrap<ApiRecord>(api.patch(`/autorizaciones/${idPath(id)}/rechazar`)),
 	reclamo: (payload: ApiRecord) =>
 		unwrap<ApiRecord>(api.post("/reclamos", payload)),
+	decidirReclamo: (id: string, accion: "aprobar" | "rechazar") =>
+		unwrap<ApiRecord>(api.patch(`/reclamos/${idPath(id)}/${accion}`)),
 	servicio: (payload: ApiRecord) =>
 		unwrap<ApiRecord>(api.post("/servicios", payload)),
 	pago: (payload: ApiRecord) => unwrap<ApiRecord>(api.post("/pagos", payload)),

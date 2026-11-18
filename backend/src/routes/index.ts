@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
 import { authController } from "../controllers/auth.controller.js";
-import { businessController } from "../controllers/business.controller.js";
+import {
+	businessController,
+	policyDatesInOrder,
+} from "../controllers/business.controller.js";
 import { crud } from "../controllers/crud.controller.js";
 import { allow, authenticate } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/errors.js";
@@ -15,11 +18,15 @@ const roles = {
 	admin: ["ADMINISTRATOR"],
 	staff: ["ADMINISTRATOR", "AGENT"],
 	review: ["ADMINISTRATOR", "SUPERVISOR"],
+	claimReaders: ["ADMINISTRATOR", "AGENT", "SUPERVISOR"],
 };
 const authBody = z.object({
 	username: z.string().min(3),
 	password: z.string().min(6),
 });
+const policyDate = z
+	.union([z.iso.date(), z.iso.datetime({ offset: true })])
+	.pipe(z.coerce.date());
 const schemas = {
 	insured: z.object({
 		name: z.string().min(2),
@@ -36,7 +43,7 @@ const schemas = {
 	provider: z.object({
 		name: z.string().min(2),
 		type: z.string().min(2),
-		city: z.string().min(2),
+		city: z.string().trim().min(2),
 		phone: z.string().min(7),
 	}),
 	plan: z.object({
@@ -49,8 +56,8 @@ const schemas = {
 		id: z.string().min(2),
 		company: z.string(),
 		planId: z.string(),
-		startDate: z.coerce.date(),
-		endDate: z.coerce.date(),
+		startDate: policyDate,
+		endDate: policyDate,
 		monthlyPremium: z.coerce.number().positive(),
 		insuredCount: z.coerce.number().int().min(0).optional(),
 		status: z.enum(["ACTIVE", "IN_GRACE", "SUSPENDED", "EXPIRED"]).optional(),
@@ -110,22 +117,30 @@ const resource = (
 	include,
 	access = roles.admin,
 	idSchema = uuid,
-	beforeCreate = undefined,
+	{
+		readAccess = access,
+		createSchema = schema,
+		beforeCreate = undefined,
+		list = undefined,
+		get = undefined,
+		update = undefined,
+		remove = undefined,
+	} = {},
 ) => {
 	const c = crud(model, include);
-	r.get(path, authenticate, allow(...access), asyncHandler(c.list));
+	r.get(path, authenticate, allow(...readAccess), asyncHandler(list ?? c.list));
 	r.get(
 		`${path}/:id`,
 		authenticate,
-		allow(...access),
+		allow(...readAccess),
 		validate(idSchema, "params"),
-		asyncHandler(c.get),
+		asyncHandler(get ?? c.get),
 	);
 	r.post(
 		path,
 		authenticate,
 		allow(...access),
-		validate(schema),
+		validate(createSchema),
 		...(beforeCreate ? [asyncHandler(beforeCreate)] : []),
 		asyncHandler(c.create),
 	);
@@ -135,14 +150,14 @@ const resource = (
 		allow(...access),
 		validate(idSchema, "params"),
 		validate(schema.partial()),
-		asyncHandler(c.update),
+		asyncHandler(update ?? c.update),
 	);
 	r.delete(
 		`${path}/:id`,
 		authenticate,
 		allow(...access),
 		validate(idSchema, "params"),
-		asyncHandler(c.remove),
+		asyncHandler(remove ?? c.remove),
 	);
 };
 resource("/planes", "plan", schemas.plan, undefined, roles.staff, stringId);
@@ -154,6 +169,17 @@ resource(
 	{ plan: true },
 	roles.admin,
 	stringId,
+	{
+		createSchema: schemas.policy.refine(
+			({ startDate, endDate }) =>
+				startDate && endDate && policyDatesInOrder({ startDate, endDate }),
+			{
+				path: ["endDate"],
+				message: "El fin de vigencia debe ser igual o posterior al inicio",
+			},
+		),
+		update: businessController.updatePolicy,
+	},
 );
 resource(
 	"/afiliados",
@@ -162,32 +188,55 @@ resource(
 	{ plan: true, policy: true },
 	roles.staff,
 	uuid,
-	async (req, res, next) => {
-		if (!(await validateCedula(req.body.nationalId)))
-			return res.status(422).json({
-				error: "INVALID_CEDULA",
-				message: "La cedula indicada no es valida",
-			});
-		next();
+	{
+		beforeCreate: async (req, res, next) => {
+			if (!(await validateCedula(req.body.nationalId)))
+				return res.status(422).json({
+					error: "INVALID_CEDULA",
+					message: "La cedula indicada no es valida",
+				});
+			next();
+		},
 	},
 );
+const claimRelations = { insured: true, provider: true };
+const fullClaim = crud("claim", claimRelations);
+const claimSummary = crud("claim", {
+	insured: { select: { id: true, name: true } },
+	provider: { select: { id: true, name: true } },
+});
+const readClaim = (operation: "list" | "get") => (req, res) =>
+	(req.user.role === "SUPERVISOR" ? claimSummary : fullClaim)[operation](
+		req,
+		res,
+	);
 resource(
 	"/reclamos",
 	"claim",
 	schemas.claim,
-	{ insured: true, provider: true },
+	claimRelations,
 	roles.staff,
+	uuid,
+	{
+		readAccess: roles.claimReaders,
+		list: readClaim("list"),
+		get: readClaim("get"),
+		update: businessController.editPendingClaim,
+		remove: businessController.removePendingClaim,
+	},
 );
 r.patch(
 	"/reclamos/:id/aprobar",
 	authenticate,
 	allow(...roles.review),
+	validate(uuid, "params"),
 	asyncHandler(businessController.decideClaim("APPROVED")),
 );
 r.patch(
 	"/reclamos/:id/rechazar",
 	authenticate,
 	allow(...roles.review),
+	validate(uuid, "params"),
 	asyncHandler(businessController.decideClaim("REJECTED")),
 );
 resource(
