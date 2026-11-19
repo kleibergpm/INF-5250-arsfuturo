@@ -11,7 +11,7 @@ const { database, transaction } = vi.hoisted(() => ({
 		notification: { create: vi.fn() },
 	},
 	transaction: {
-		authorization: { update: vi.fn() },
+		authorization: { updateMany: vi.fn(), findUniqueOrThrow: vi.fn() },
 		notification: { create: vi.fn() },
 	},
 }));
@@ -28,6 +28,7 @@ const bearer = (role: string) =>
 
 beforeEach(() => {
 	vi.resetAllMocks();
+	transaction.authorization.updateMany.mockResolvedValue({ count: 1 });
 	database.$transaction.mockImplementation((operation) =>
 		operation(transaction),
 	);
@@ -52,9 +53,49 @@ it("crea en revisión una autorización cubierta y conserva el copago", async ()
 	expect(result.body).toMatchObject({ status: "PENDING", copay: 125 });
 });
 
+describe("decisiones definitivas de autorizaciones", () => {
+	it.each([
+		["APPROVED", "rechazar"],
+		["REJECTED", "aprobar"],
+	])(
+		"responde 409 si se intenta cambiar %s mediante %s",
+		async (status, action) => {
+			transaction.authorization.updateMany.mockResolvedValue({ count: 0 });
+			transaction.authorization.findUniqueOrThrow.mockResolvedValue({
+				id,
+				status,
+			});
+
+			const response = await request(app)
+				.patch(`/api/autorizaciones/${id}/${action}`)
+				.set("Authorization", bearer("SUPERVISOR"))
+				.expect(409);
+
+			expect(response.body.error).toBe("AUTHORIZATION_ALREADY_DECIDED");
+			expect(transaction.notification.create).not.toHaveBeenCalled();
+		},
+	);
+
+	it("devuelve la decisión existente al reintentar sin duplicar la notificación", async () => {
+		transaction.authorization.updateMany.mockResolvedValue({ count: 0 });
+		transaction.authorization.findUniqueOrThrow.mockResolvedValue({
+			id,
+			status: "APPROVED",
+		});
+
+		const response = await request(app)
+			.patch(`/api/autorizaciones/${id}/aprobar`)
+			.set("Authorization", bearer("SUPERVISOR"))
+			.expect(200);
+
+		expect(response.body.status).toBe("APPROVED");
+		expect(transaction.notification.create).not.toHaveBeenCalled();
+	});
+});
+
 describe("rechazo de autorizaciones", () => {
 	it("devuelve el estado rechazado y registra su notificación en la misma transacción", async () => {
-		transaction.authorization.update.mockResolvedValue({
+		transaction.authorization.findUniqueOrThrow.mockResolvedValue({
 			id,
 			status: "REJECTED",
 		});
@@ -65,8 +106,8 @@ describe("rechazo de autorizaciones", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.body).toMatchObject({ id, status: "REJECTED" });
-		expect(transaction.authorization.update).toHaveBeenCalledWith({
-			where: { id },
+		expect(transaction.authorization.updateMany).toHaveBeenCalledWith({
+			where: { id, status: "PENDING" },
 			data: { status: "REJECTED" },
 		});
 		expect(transaction.notification.create).toHaveBeenCalledWith({
@@ -78,7 +119,7 @@ describe("rechazo de autorizaciones", () => {
 	});
 
 	it("devuelve 404 si la autorización no existe", async () => {
-		transaction.authorization.update.mockRejectedValue(
+		transaction.authorization.findUniqueOrThrow.mockRejectedValue(
 			new Prisma.PrismaClientKnownRequestError("Registro inexistente", {
 				code: "P2025",
 				clientVersion: "test",
@@ -94,7 +135,7 @@ describe("rechazo de autorizaciones", () => {
 	});
 
 	it("propaga el fallo de notificación a la transacción sin confirmar el rechazo", async () => {
-		transaction.authorization.update.mockResolvedValue({
+		transaction.authorization.findUniqueOrThrow.mockResolvedValue({
 			id,
 			status: "REJECTED",
 		});

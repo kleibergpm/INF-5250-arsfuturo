@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { FileDown, RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Factura, Poliza } from "../api/adapters";
+import { Pagination, usePagination } from "../components/Pagination";
 import {
 	Badge,
 	Button,
@@ -70,6 +71,10 @@ export function FacturacionTab({
 			return true;
 		});
 	}, [facturas, filtroPeriodo, filtroEstado]);
+	const { rows, pagination } = usePagination(
+		facturasFiltradas,
+		JSON.stringify([filtroPeriodo, filtroEstado]),
+	);
 
 	const exportar = () => {
 		const rows: unknown[][] = [
@@ -184,7 +189,7 @@ export function FacturacionTab({
 							</tr>
 						</thead>
 						<tbody>
-							{facturasFiltradas.map((f) => {
+							{rows.map((f) => {
 								const p = polizas.find((x) => x.id === f.polizaId);
 								return (
 									<tr key={f.id} className="border-b last:border-0">
@@ -262,6 +267,7 @@ export function FacturacionTab({
 						</tbody>
 					</table>
 				</div>
+				<Pagination {...pagination} />
 			</Card>
 
 			<AnimatePresence>

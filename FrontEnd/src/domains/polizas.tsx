@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import type { Plan, Poliza } from "../api/adapters";
+import { Pagination, usePagination } from "../components/Pagination";
 import { Badge, Card, Divider, Input, Select } from "../components/ui";
 import { currency, formatDate } from "../lib/formatters";
 export function PolizasTab({
@@ -18,6 +19,7 @@ export function PolizasTab({
 		return personas * base;
 	}, [personas, plan]);
 
+	const { rows, pagination } = usePagination(polizas);
 	return (
 		<motion.div
 			initial={{ opacity: 0, y: 10 }}
@@ -28,7 +30,7 @@ export function PolizasTab({
 				<Card>
 					<h3 className="font-semibold mb-3">Pólizas</h3>
 					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-						{polizas.map((p) => (
+						{rows.map((p) => (
 							<div key={p.id} className="rounded-xl border p-3">
 								<div className="flex items-center justify-between mb-2">
 									<div>
@@ -77,6 +79,7 @@ export function PolizasTab({
 							</div>
 						))}
 					</div>
+					<Pagination {...pagination} />
 				</Card>
 
 				<Card>

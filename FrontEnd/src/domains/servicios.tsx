@@ -7,6 +7,7 @@ import type {
 	Proveedor,
 	Servicio,
 } from "../api/adapters";
+import { Pagination, usePagination } from "../components/Pagination";
 import {
 	ActionConfirmation,
 	Badge,
@@ -49,6 +50,10 @@ export function ServiciosTab({
 			return true;
 		});
 	}, [servicios, filtroProveedor, filtroEstado]);
+	const { rows, pagination } = usePagination(
+		serviciosFiltrados,
+		JSON.stringify([filtroProveedor, filtroEstado]),
+	);
 
 	const exportar = () => {
 		const rows: unknown[][] = [
@@ -145,7 +150,7 @@ export function ServiciosTab({
 							</tr>
 						</thead>
 						<tbody>
-							{serviciosFiltrados.map((s) => {
+							{rows.map((s) => {
 								const af = afiliados.find((a) => a.id === s.afiliadoId);
 								const pr = proveedores.find((p) => p.id === s.proveedorId);
 								return (
@@ -170,6 +175,7 @@ export function ServiciosTab({
 						</tbody>
 					</table>
 				</div>
+				<Pagination {...pagination} />
 			</Card>
 
 			<AnimatePresence>

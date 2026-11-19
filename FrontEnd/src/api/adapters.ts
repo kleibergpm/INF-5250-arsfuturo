@@ -214,7 +214,7 @@ export const adaptCollection = <T>(
 // Contraparte de los adaptadores de arriba: App.tsx sigue construyendo los formularios con
 // nombres en español; estas funciones traducen justo antes de llamar a mutationsApi.
 
-export const toInsuredPayload = (input: {
+type InsuredFormInput = {
 	nombre?: string;
 	cedula?: string;
 	plan: string;
@@ -224,11 +224,15 @@ export const toInsuredPayload = (input: {
 	telefono?: string | null;
 	correo?: string | null;
 	dependientes?: number;
-}): ApiRecord => ({
+};
+
+export const toInsuredUpdatePayload = (input: InsuredFormInput): ApiRecord => ({
 	name: input.nombre?.trim(),
-	nationalId: input.cedula?.trim(),
 	planId: input.plan,
-	status: input.estado === "Activo" ? "ACTIVE" : "SUSPENDED",
+	status:
+		Object.keys(insuredStatusLabels).find(
+			(status) => insuredStatusLabels[status] === input.estado,
+		) ?? "SUSPENDED",
 	startDate: input.desde || new Date().toISOString().slice(0, 10),
 	birthDate: input.nacimiento || null,
 	phone: input.telefono || null,
@@ -236,12 +240,9 @@ export const toInsuredPayload = (input: {
 	dependents: Number(input.dependientes) || 0,
 });
 
-export const toInsuredUpdatePayload = (input: {
-	telefono?: string | null;
-	correo?: string | null;
-}): ApiRecord => ({
-	phone: input.telefono,
-	email: input.correo,
+export const toInsuredPayload = (input: InsuredFormInput): ApiRecord => ({
+	...toInsuredUpdatePayload(input),
+	nationalId: input.cedula?.trim(),
 });
 
 export const toAuthorizationPayload = (input: {
