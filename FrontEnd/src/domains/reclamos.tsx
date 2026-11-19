@@ -3,6 +3,7 @@ import { CheckCircle2, FileDown, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { Afiliado, Proveedor, Reclamo } from "../api/adapters";
+import { Pagination, usePagination } from "../components/Pagination";
 import {
 	ActionConfirmation,
 	Badge,
@@ -58,6 +59,7 @@ export function ReclamosTab({
 					String(r.id).includes(q),
 			);
 	}, [reclamaciones, estado, q]);
+	const { rows, pagination } = usePagination(data, JSON.stringify([estado, q]));
 
 	const total = useMemo(() => data.reduce((s, r) => s + r.monto, 0), [data]);
 	const aprobacionRechazo = useMemo(
@@ -158,7 +160,7 @@ export function ReclamosTab({
 										</td>
 									</tr>
 								)}
-								{data.map((r) => (
+								{rows.map((r) => (
 									<tr key={r.id} className="border-b last:border-0">
 										<td className="py-2 pr-2">{r.id}</td>
 										<td className="py-2 pr-2 font-medium">
@@ -208,6 +210,7 @@ export function ReclamosTab({
 							</tbody>
 						</table>
 					</div>
+					<Pagination {...pagination} />
 				</Card>
 
 				<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

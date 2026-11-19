@@ -351,7 +351,16 @@ const spec = {
 				tags: ["autorizaciones"],
 				summary: "Aprueba una autorizacion",
 				security: bearerSecurity,
-				responses: { 200: okResponse, ...errorResponses },
+				description:
+					"Solo puede decidirse una autorización en revisión. Repetir la misma decisión devuelve el estado actual.",
+				responses: {
+					200: okResponse,
+					404: { description: "Autorización inexistente" },
+					409: {
+						description: "La autorización ya tiene la decisión contraria",
+					},
+					...errorResponses,
+				},
 			},
 		},
 		"/api/autorizaciones/{id}/rechazar": {
@@ -360,7 +369,16 @@ const spec = {
 				tags: ["autorizaciones"],
 				summary: "Rechaza una autorizacion",
 				security: bearerSecurity,
-				responses: { 200: okResponse, ...errorResponses },
+				description:
+					"Solo puede decidirse una autorización en revisión. Repetir la misma decisión devuelve el estado actual.",
+				responses: {
+					200: okResponse,
+					404: { description: "Autorización inexistente" },
+					409: {
+						description: "La autorización ya tiene la decisión contraria",
+					},
+					...errorResponses,
+				},
 			},
 		},
 		"/api/servicios": {

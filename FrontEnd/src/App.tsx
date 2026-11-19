@@ -1,13 +1,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
-	FileDown,
 	FileText,
-	Filter,
 	Loader2,
 	Lock,
-	Mail,
-	Phone,
-	Plus,
 	Stethoscope,
 	User,
 	Users,
@@ -64,15 +59,15 @@ import {
 import { authApi, mutationsApi, resourcesApi } from "./api/client";
 import { registrationFeedback } from "./api/registration-feedback";
 import { AppHeader, AppNavigation } from "./components/AppChrome";
+import { Pagination, usePagination } from "./components/Pagination";
 import {
-	Badge,
 	Button,
 	Card,
 	Input,
 	type Notification,
 	NotificationContainer,
 } from "./components/ui";
-import { AfiliadoActions, NuevoAfiliadoModal } from "./domains/afiliados";
+import { AfiliadosTab } from "./domains/afiliados";
 import { AutorizacionesTab } from "./domains/autorizaciones";
 import type {
 	AutorizacionInput,
@@ -90,13 +85,8 @@ import { PolizasTab } from "./domains/polizas";
 import { ProveedoresTab } from "./domains/proveedores";
 import { ReclamosTab } from "./domains/reclamos";
 import { ServiciosTab } from "./domains/servicios";
-import { currency, exportCsv, formatDate } from "./lib/formatters";
+import { currency, formatDate } from "./lib/formatters";
 import { graficaDe, TEMA_KEY, type Tema } from "./lib/theme";
-
-// La cobertura por procedimiento ahora la decide solo el backend (createAuthorization);
-// esto es un simple lookup de presentación, no una regla de negocio.
-const getPlanName = (plans: Plan[], planId: string) =>
-	plans.find((plan) => plan.id === planId)?.nombre ?? "Plan no disponible";
 
 export default function ARS_Futuro_App() {
 	const [selectedTab, setTab] = useState("dashboard");
@@ -119,6 +109,10 @@ export default function ARS_Futuro_App() {
 	const [ownAuthorizations, setOwnAuthorizations] = useState<Autorizacion[]>(
 		[],
 	);
+	const { rows: ownRows, pagination: ownPagination } = usePagination(
+		ownAuthorizations,
+		currentUser?.id,
+	);
 	const [ownError, setOwnError] = useState("");
 
 	const [planes, setPlanes] = useState<Plan[]>([]);
@@ -131,7 +125,6 @@ export default function ARS_Futuro_App() {
 	const [pagos, setPagos] = useState<Pago[]>([]);
 	const [facturas, setFacturas] = useState<Factura[]>([]);
 	const [loading, setLoading] = useState(false);
-	const [openNuevoAfiliado, setOpenNuevoAfiliado] = useState(false);
 
 	// Estado del tema visual
 	const [tema, setTema] = useState<Tema>(() => {
@@ -545,15 +538,9 @@ export default function ARS_Futuro_App() {
 	};
 
 	// Actualizar datos de afiliado (CU10)
-	const actualizarAfiliado = async (
-		id: string,
-		{ telefono, correo }: EditarAfiliadoInput,
-	) => {
+	const actualizarAfiliado = async (id: string, input: EditarAfiliadoInput) => {
 		const actualizado = adaptAfiliado(
-			await mutationsApi.actualizarAfiliado(
-				id,
-				toInsuredUpdatePayload({ telefono, correo }),
-			),
+			await mutationsApi.actualizarAfiliado(id, toInsuredUpdatePayload(input)),
 		);
 		setAfiliados((prev) => prev.map((a) => (a.id === id ? actualizado : a)));
 	};
@@ -957,7 +944,7 @@ export default function ARS_Futuro_App() {
 						<p className="my-4">No tienes autorizaciones registradas.</p>
 					) : (
 						<div className="grid gap-4 my-4">
-							{ownAuthorizations.map((item) => (
+							{ownRows.map((item) => (
 								<Card key={item.id} className="p-4">
 									<h2 className="font-semibold">{item.procedimiento}</h2>
 									<p>Prestador: {item.proveedorNombre}</p>
@@ -966,6 +953,7 @@ export default function ARS_Futuro_App() {
 									<p>Copago: {currency(item.copago ?? 0)}</p>
 								</Card>
 							))}
+							<Pagination {...ownPagination} />
 						</div>
 					)}
 				</main>
@@ -1119,133 +1107,16 @@ export default function ARS_Futuro_App() {
 						)}
 
 						{tab === "afiliados" && (
-							<motion.div
+							<AfiliadosTab
 								key="afiliados"
-								initial={{ opacity: 0, y: 10 }}
-								animate={{ opacity: 1, y: 0 }}
-								exit={{ opacity: 0, y: 10 }}
-							>
-								<Card>
-									<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-										<div className="flex items-center gap-2">
-											<Filter className="w-4 h-4 text-[var(--text-faint)]" />
-											<span className="text-sm text-[var(--text-body)]">
-												{afiliados.length} resultado(s)
-											</span>
-										</div>
-										<div className="flex items-center gap-2">
-											<Button
-												variant="primary"
-												className="flex items-center justify-center pt-1"
-												onClick={() => setOpenNuevoAfiliado(true)}
-											>
-												<Plus className="w-4 h-4 mr-2" /> Nuevo afiliado
-											</Button>
-											<Button
-												variant="ghost"
-												className="flex items-center justify-center pt-1"
-												onClick={() =>
-													exportCsv("Afiliados", [
-														[
-															"ID",
-															"Nombre",
-															"Cédula",
-															"Plan",
-															"Estado",
-															"Desde",
-															"Nacimiento",
-															"Teléfono",
-															"Correo",
-															"Dependientes",
-														],
-														...afiliados.map((a) => [
-															a.id,
-															a.nombre,
-															a.cedula,
-															a.plan,
-															a.estado,
-															formatDate(a.desde),
-															formatDate(a.nacimiento),
-															a.telefono,
-															a.correo,
-															a.dependientes,
-														]),
-													])
-												}
-											>
-												<FileDown className="w-4 h-4 mr-2" />{" "}
-												<span className="hidden sm:inline">Exportar</span>
-											</Button>
-										</div>
-									</div>
-									<NuevoAfiliadoModal
-										open={openNuevoAfiliado}
-										onClose={() => setOpenNuevoAfiliado(false)}
-										planes={planes}
-										crearAfiliado={crearAfiliado}
-									/>
-									<div className="overflow-x-auto">
-										<table className="data-table w-full text-sm min-w-[800px]">
-											<thead>
-												<tr className="text-left text-[var(--text-muted)] border-b">
-													<th className="py-2 pr-2 min-w-[150px]">Nombre</th>
-													<th className="py-2 pr-2 min-w-[120px]">Cedula</th>
-													<th className="py-2 pr-2 min-w-[100px]">Plan</th>
-													<th className="py-2 pr-2 min-w-[80px]">Estado</th>
-													<th className="py-2 pr-2 min-w-[100px]">Desde</th>
-													<th className="py-2 pr-2 min-w-[200px]">Contacto</th>
-													<th className="py-2 pr-2 min-w-[120px]">Acciones</th>
-												</tr>
-											</thead>
-											<tbody>
-												{afiliados.map((a) => (
-													<tr key={a.id} className="border-b last:border-0">
-														<td className="py-2 pr-2 font-medium">
-															{a.nombre}
-														</td>
-														<td className="py-2 pr-2">{a.cedula}</td>
-														<td className="py-2 pr-2">
-															{getPlanName(planes, a.plan)}
-														</td>
-														<td className="py-2 pr-2">
-															<Badge
-																color={
-																	a.estado === "Activo" ? "green" : "amber"
-																}
-															>
-																{a.estado}
-															</Badge>
-														</td>
-														<td className="py-2 pr-2">{formatDate(a.desde)}</td>
-														<td className="py-2 pr-2 text-[var(--text-body)]">
-															<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-																<span className="inline-flex items-center gap-1 text-xs">
-																	<Phone className="w-3 h-3" />
-																	{a.telefono}
-																</span>
-																<span className="inline-flex items-center gap-1 text-xs">
-																	<Mail className="w-3 h-3" />
-																	{a.correo}
-																</span>
-															</div>
-														</td>
-														<td className="py-2 pr-2">
-															<AfiliadoActions
-																afiliado={a}
-																afiliados={afiliados}
-																proveedores={proveedores}
-																crearAutorizacion={crearAutorizacion}
-																addNotification={addNotification}
-																onEditarAfiliado={actualizarAfiliado}
-															/>
-														</td>
-													</tr>
-												))}
-											</tbody>
-										</table>
-									</div>
-								</Card>
-							</motion.div>
+								afiliados={afiliados}
+								planes={planes}
+								proveedores={proveedores}
+								crearAfiliado={crearAfiliado}
+								actualizarAfiliado={actualizarAfiliado}
+								crearAutorizacion={crearAutorizacion}
+								addNotification={addNotification}
+							/>
 						)}
 
 						{tab === "autoriz" && (
