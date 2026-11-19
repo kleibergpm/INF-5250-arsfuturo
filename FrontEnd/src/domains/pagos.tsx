@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { FileDown, Wallet } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { Pago, Proveedor, Servicio } from "../api/adapters";
+import { Pagination, usePagination } from "../components/Pagination";
 import {
 	Badge,
 	Button,
@@ -36,6 +37,10 @@ export function PagosTab({
 				String(p.proveedorId) === String(filtroProveedor),
 		);
 	}, [pagos, filtroProveedor]);
+	const { rows, pagination } = usePagination(
+		pagosFiltrados,
+		JSON.stringify([filtroProveedor]),
+	);
 
 	const exportar = () => {
 		const rows: unknown[][] = [
@@ -119,7 +124,7 @@ export function PagosTab({
 							</tr>
 						</thead>
 						<tbody>
-							{pagosFiltrados.map((p) => {
+							{rows.map((p) => {
 								const pr = proveedores.find((x) => x.id === p.proveedorId);
 								const servicio = servicios.find((s) => s.id === p.servicioId);
 								return (
@@ -147,6 +152,7 @@ export function PagosTab({
 						</tbody>
 					</table>
 				</div>
+				<Pagination {...pagination} />
 			</Card>
 
 			<AnimatePresence>

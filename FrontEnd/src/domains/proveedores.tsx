@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import type { Proveedor } from "../api/adapters";
+import { Pagination, usePagination } from "../components/Pagination";
 import { Badge, Card, Select } from "../components/ui";
 export function ProveedoresTab({ proveedores }: { proveedores: Proveedor[] }) {
 	const [ciudad, setCiudad] = useState("Todas");
@@ -29,6 +30,10 @@ export function ProveedoresTab({ proveedores }: { proveedores: Proveedor[] }) {
 		[proveedores],
 	);
 
+	const { rows, pagination } = usePagination(
+		data,
+		JSON.stringify([ciudad, tipo]),
+	);
 	return (
 		<motion.div
 			initial={{ opacity: 0, y: 10 }}
@@ -62,7 +67,7 @@ export function ProveedoresTab({ proveedores }: { proveedores: Proveedor[] }) {
 					</div>
 				</div>
 				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-					{data.map((p) => (
+					{rows.map((p) => (
 						<div key={p.id} className="rounded-xl border p-3">
 							<div className="flex items-start justify-between mb-2">
 								<div className="flex-1 min-w-0">
@@ -83,6 +88,7 @@ export function ProveedoresTab({ proveedores }: { proveedores: Proveedor[] }) {
 						</div>
 					))}
 				</div>
+				<Pagination {...pagination} />
 			</Card>
 		</motion.div>
 	);

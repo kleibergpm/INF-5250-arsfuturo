@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { CheckCircle2, FileDown, Plus, Search, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Afiliado, Autorizacion, Proveedor } from "../api/adapters";
+import { Pagination, usePagination } from "../components/Pagination";
 import {
 	ActionConfirmation,
 	Badge,
@@ -54,6 +55,7 @@ export function AutorizacionesTab({
 							String(a.id).includes(q);
 			});
 	}, [autorizaciones, afiliados, estado, q]);
+	const { rows, pagination } = usePagination(data, JSON.stringify([estado, q]));
 
 	return (
 		<motion.div
@@ -136,7 +138,7 @@ export function AutorizacionesTab({
 							</tr>
 						</thead>
 						<tbody>
-							{data.map((a) => (
+							{rows.map((a) => (
 								<tr key={a.id} className="border-b last:border-0">
 									<td className="py-2 pr-2">{a.id}</td>
 									<td className="py-2 pr-2 font-medium">
@@ -161,7 +163,7 @@ export function AutorizacionesTab({
 									</td>
 									<td className="py-2 pr-2">{formatDate(a.fecha)}</td>
 									<td className="py-2 pr-2">
-										{puedeDecidir && (
+										{puedeDecidir && a.estado === "En revisión" && (
 											<div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-2">
 												<Button
 													size="sm"
@@ -193,6 +195,7 @@ export function AutorizacionesTab({
 						</tbody>
 					</table>
 				</div>
+				<Pagination {...pagination} />
 			</Card>
 
 			<ActionConfirmation

@@ -119,24 +119,39 @@ export class BusinessController {
 		res.status(201).json(row);
 	};
 
-	decideAuthorization = (status) => async (req, res) => {
-		const row = await this.database.$transaction(async (transaction) => {
-			const authorization = await transaction.authorization.update({
-				where: { id: req.params.id },
-				data: { status },
-			});
-			await this.notifications.create(
-				{
-					type: status === "APPROVED" ? "success" : "error",
-					title: "Autorización procesada",
-					message: `Autorización ${authorization.id}: ${status}.`,
+	decideAuthorization =
+		(status: "APPROVED" | "REJECTED") => async (req, res) => {
+			const id = req.params.id;
+			const authorization = await this.database.$transaction(
+				async (transaction) => {
+					const updated = await transaction.authorization.updateMany({
+						where: { id, status: "PENDING" },
+						data: { status },
+					});
+					const row = await transaction.authorization.findUniqueOrThrow({
+						where: { id },
+					});
+					if (updated.count) {
+						await this.notifications.create(
+							{
+								type: status === "APPROVED" ? "success" : "error",
+								title: "Autorización procesada",
+								message: `Autorización ${row.id}: ${status}.`,
+							},
+							transaction,
+						);
+					}
+					return row;
 				},
-				transaction,
 			);
-			return authorization;
-		});
-		res.json(row);
-	};
+			if (authorization.status !== status) {
+				return res.status(409).json({
+					error: "AUTHORIZATION_ALREADY_DECIDED",
+					message: "La autorización ya tiene una decisión definitiva.",
+				});
+			}
+			res.json(authorization);
+		};
 
 	decideClaim =
 		(status: Exclude<ClaimStatus, "UNDER_REVIEW">) => async (req, res) => {
