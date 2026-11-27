@@ -137,10 +137,9 @@ export function ReclamosTab({
 						</div>
 					</div>
 					<div className="overflow-x-auto">
-						<table className="data-table w-full text-sm min-w-[700px]">
+						<table className="data-table w-full text-sm min-w-[640px]">
 							<thead>
 								<tr className="text-left text-[var(--text-muted)] border-b">
-									<th className="py-2 pr-2 min-w-[60px]">#</th>
 									<th className="py-2 pr-2 min-w-[150px]">Afiliado</th>
 									<th className="py-2 pr-2 min-w-[150px]">Proveedor</th>
 									<th className="py-2 pr-2 min-w-[100px]">Monto</th>
@@ -153,7 +152,7 @@ export function ReclamosTab({
 								{data.length === 0 && (
 									<tr>
 										<td
-											colSpan={canDecide ? 7 : 6}
+											colSpan={canDecide ? 6 : 5}
 											className="py-4 text-center"
 										>
 											No hay reclamos para los filtros seleccionados.
@@ -162,7 +161,6 @@ export function ReclamosTab({
 								)}
 								{rows.map((r) => (
 									<tr key={r.id} className="border-b last:border-0">
-										<td className="py-2 pr-2">{r.id}</td>
 										<td className="py-2 pr-2 font-medium">
 											{r.afiliadoNombre}
 										</td>

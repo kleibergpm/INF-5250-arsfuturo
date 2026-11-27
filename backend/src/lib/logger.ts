@@ -17,6 +17,9 @@ type Events = {
 		providers: number;
 		policies: number;
 		insuredPeople: number;
+		authorizations: number;
+		claims: number;
+		services: number;
 	};
 	"seed.failed": undefined;
 };

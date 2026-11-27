@@ -601,6 +601,148 @@ async function seed(prisma: PrismaClient) {
 		});
 	}
 
+	const demoInsureds = await Promise.all(
+		insuredPeople.slice(0, 4).map(({ nationalId }) =>
+			prisma.insured.findUniqueOrThrow({
+				where: { nationalId },
+				select: { id: true },
+			}),
+		),
+	);
+	const demoProviders = await Promise.all(
+		providers.slice(0, 4).map(({ name }) =>
+			prisma.provider.findFirstOrThrow({
+				where: { name },
+				select: { id: true },
+			}),
+		),
+	);
+
+	const authorizations = [
+		{
+			id: "00000000-0000-4000-8000-000000000001",
+			insuredId: demoInsureds[0].id,
+			providerId: demoProviders[0].id,
+			procedure: "Consulta general",
+			copay: 50,
+			status: "APPROVED",
+			date: new Date("2026-09-10"),
+		},
+		{
+			id: "00000000-0000-4000-8000-000000000002",
+			insuredId: demoInsureds[1].id,
+			providerId: demoProviders[2].id,
+			procedure: "Perfil lipídico",
+			copay: 100,
+			status: "APPROVED",
+			date: new Date("2026-09-12"),
+		},
+		{
+			id: "00000000-0000-4000-8000-000000000003",
+			insuredId: demoInsureds[2].id,
+			providerId: demoProviders[1].id,
+			procedure: "Consulta especializada",
+			copay: 50,
+			status: "PENDING",
+			date: new Date("2026-09-15"),
+		},
+		{
+			id: "00000000-0000-4000-8000-000000000004",
+			insuredId: demoInsureds[3].id,
+			providerId: demoProviders[3].id,
+			procedure: "Cirugía electiva",
+			copay: 200,
+			status: "REJECTED",
+			date: new Date("2026-09-18"),
+		},
+	] as const;
+
+	for (const authorization of authorizations) {
+		await prisma.authorization.upsert({
+			where: { id: authorization.id },
+			update: authorization,
+			create: authorization,
+		});
+	}
+
+	const claims = [
+		{
+			id: "00000000-0000-4000-8000-000000000011",
+			insuredId: demoInsureds[0].id,
+			providerId: demoProviders[0].id,
+			amount: 12500,
+			status: "UNDER_REVIEW",
+			date: new Date("2026-09-11"),
+		},
+		{
+			id: "00000000-0000-4000-8000-000000000012",
+			insuredId: demoInsureds[1].id,
+			providerId: demoProviders[1].id,
+			amount: 8200,
+			status: "APPROVED",
+			date: new Date("2026-09-13"),
+		},
+		{
+			id: "00000000-0000-4000-8000-000000000013",
+			insuredId: demoInsureds[2].id,
+			providerId: demoProviders[2].id,
+			amount: 4600,
+			status: "REJECTED",
+			date: new Date("2026-09-16"),
+		},
+	] as const;
+
+	for (const claim of claims) {
+		await prisma.claim.upsert({
+			where: { id: claim.id },
+			update: claim,
+			create: claim,
+		});
+	}
+
+	const services = [
+		{
+			id: "00000000-0000-4000-8000-000000000021",
+			insuredId: demoInsureds[0].id,
+			providerId: demoProviders[0].id,
+			authorizationId: authorizations[0].id,
+			description: "Consulta general",
+			cost: 1500,
+			copay: 50,
+			date: new Date("2026-09-12"),
+			status: "PENDING_PAYMENT",
+		},
+		{
+			id: "00000000-0000-4000-8000-000000000022",
+			insuredId: demoInsureds[1].id,
+			providerId: demoProviders[2].id,
+			authorizationId: authorizations[1].id,
+			description: "Perfil lipídico",
+			cost: 3600,
+			copay: 100,
+			date: new Date("2026-09-14"),
+			status: "PENDING_PAYMENT",
+		},
+		{
+			id: "00000000-0000-4000-8000-000000000023",
+			insuredId: demoInsureds[2].id,
+			providerId: demoProviders[1].id,
+			description: "Consulta especializada",
+			cost: 2400,
+			copay: 50,
+			date: new Date("2026-09-17"),
+			status: "PENDING_PAYMENT",
+		},
+	] as const;
+
+	for (const service of services) {
+		await prisma.medicalService.upsert({
+			where: { id: service.id },
+			update: service,
+			create: service,
+		});
+	}
+
 	// Cuenta demo vinculada por cedula al primer asegurado (datos ficticios).
 	await prisma.user.upsert({
 		where: { username: "afiliado" },
@@ -629,6 +771,9 @@ async function seed(prisma: PrismaClient) {
 		providers: providers.length,
 		policies: policies.length,
 		insuredPeople: insuredPeople.length,
+		authorizations: authorizations.length,
+		claims: claims.length,
+		services: services.length,
 	});
 }
 

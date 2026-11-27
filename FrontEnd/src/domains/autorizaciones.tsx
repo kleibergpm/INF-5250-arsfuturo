@@ -125,10 +125,9 @@ export function AutorizacionesTab({
 					</div>
 				</div>
 				<div className="overflow-x-auto">
-					<table className="data-table w-full text-sm min-w-[800px]">
+					<table className="data-table w-full text-sm min-w-[740px]">
 						<thead>
 							<tr className="text-left text-[var(--text-muted)] border-b">
-								<th className="py-2 pr-2 min-w-[60px]">#</th>
 								<th className="py-2 pr-2 min-w-[150px]">Afiliado</th>
 								<th className="py-2 pr-2 min-w-[120px]">Procedimiento</th>
 								<th className="py-2 pr-2 min-w-[150px]">Proveedor</th>
@@ -140,7 +139,6 @@ export function AutorizacionesTab({
 						<tbody>
 							{rows.map((a) => (
 								<tr key={a.id} className="border-b last:border-0">
-									<td className="py-2 pr-2">{a.id}</td>
 									<td className="py-2 pr-2 font-medium">
 										{afiliados.find((x) => x.id === a.afiliadoId)?.nombre}
 									</td>
