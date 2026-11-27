@@ -1,122 +1,56 @@
-# Backend ARS Futuro
+# Backend de ARS Futuro
 
-API REST MVC con Express, Prisma y PostgreSQL. La documentación interactiva estará disponible en `http://localhost:4000/api/docs`.
-
-## Índice
-
-- [Instalación local](#instalación-local)
-- [Variables de entorno](#variables-de-entorno)
-- [Inicializar la base de datos](#inicializar-la-base-de-datos)
-- [Ejecutar la API](#ejecutar-la-api)
-- [API](#api)
-
-## Instalación local
-
-Desde la carpeta del backend:
-
-```bash
-cd backend
-npm install
-```
-
-Copia el archivo de ejemplo del entorno:
-
-```powershell
-npm install
-Copy-Item .env.example .env
-npm run prisma:generate
-npx prisma db push
-npm run prisma:seed
-```
-
-El repositorio actual no contiene migraciones en `prisma/migrations`, por lo que `npx prisma db push` es el comando correcto para preparar las tablas. Los scripts SQL de `sql/` son una alternativa manual; no los combines con Prisma sobre una base ya inicializada.
+API REST con Express, TypeScript, Prisma y PostgreSQL. Toda la preparación de una instalación nueva está en la [guía de arranque](../README.md#preparación-local). Los comandos de esta página se ejecutan desde `backend/`.
 
 ## Variables de entorno
 
-Edita el archivo `.env` con tus valores locales:
+Copia `.env.example` a `.env` y completa los valores locales antes de generar el cliente de Prisma.
 
-```env
-PORT=4000
-DATABASE_URL="postgresql://postgres:TU_PASSWORD@localhost:5432/ars_futuro?schema=public"
-JWT_SECRET="una-clave-larga-y-privada"
-CORS_ORIGIN="http://localhost:5173"
-```
+| Variable | Valor o uso |
+| --- | --- |
+| `DATABASE_URL` | URL PostgreSQL obligatoria. Debe identificar la base de datos. |
+| `JWT_SECRET` | Clave privada obligatoria para firmar tokens. |
+| `PORT` | Puerto de la API. El valor predeterminado es `4000`. |
+| `CORS_ORIGIN` | Origen HTTP del frontend. El valor predeterminado es `http://localhost:5173`. |
+| `SHADOW_DATABASE_URL` | URL opcional de la base shadow para desarrollar migraciones. |
 
-### Descripción de variables
+## PostgreSQL y Prisma
 
-- `PORT`: puerto en el que correrá la API
-- `DATABASE_URL`: conexión a PostgreSQL
-- `JWT_SECRET`: clave para firmar tokens JWT
-- `CORS_ORIGIN`: origen permitido por CORS del frontend
+`prisma/schema.prisma` define los modelos. `prisma.config.ts` configura las migraciones y el seed. Aplica el historial con `pnpm exec prisma migrate deploy` y genera el cliente con `pnpm run prisma:generate`. Usa `pnpm run prisma:migrate` para crear una migración de desarrollo y `pnpm run prisma:seed` para cargar [datos demo](../README.md#acceso-demo) en una base local.
 
-> El archivo `.env.example` ya está incluido en la carpeta backend y sirve como base segura para la configuración local.
+Para un prototipo sin historial puedes usar `pnpm exec prisma db push` en una base separada. Las bases compartidas se administran mediante las migraciones.
 
-## Base de datos
+### Instalación alternativa con SQL
 
-Si tu proyecto no tiene migraciones generadas, crea la estructura desde Prisma:
+Los archivos de `sql/` permiten inicializar y sembrar una base **vacía** cuando el entorno dispone de `psql`. Usa un solo método de inicialización y un solo seed.
 
 ```bash
-npm run prisma:generate
-npx prisma db push
-npm run prisma:seed
+psql -d ars_futuro -v ON_ERROR_STOP=1 -f sql/init-postgresql.sql
+psql -d ars_futuro -v ON_ERROR_STOP=1 -f sql/seed-postgresql.sql
 ```
 
-Si solo deseas reiniciar los datos demo, puedes ejecutar:
+Si migras a Prisma Migrate desde ese esquema consolidado, comprueba primero que contiene ambas migraciones y regístralas como aplicadas.
 
 ```bash
-npm run prisma:seed
+pnpm exec prisma migrate resolve --applied 20260917235148_first_migration
+pnpm exec prisma migrate resolve --applied 20261018000000_insured_registration
 ```
 
-El repositorio actual no contiene migraciones en `prisma/migrations`, por lo que `npx prisma db push` es el comando recomendado para preparar las tablas. Los scripts SQL de `sql/` son una alternativa manual, pero no deben mezclarse con Prisma en una base ya inicializada.
+## API y estructura
 
-## Ejecutar la API
+`pnpm run dev` inicia la API con recarga automática. `pnpm run start` la inicia sin watch. La especificación [Swagger local](http://localhost:4000/api/docs) describe los recursos, permisos y operaciones de negocio. Las rutas protegidas usan `Authorization: Bearer <token>`.
+
+- `src/app.ts` monta middleware y rutas. `src/server.ts` gestiona el arranque y apagado.
+- `src/routes/` reúne permisos y validación Zod. `src/controllers/` coordina las operaciones.
+- `src/services/` contiene servicios del dominio e integraciones. `src/lib/` contiene configuración, Prisma, logs y Swagger.
+- `prisma/` contiene modelos, migraciones y seed. `tests/` contiene las pruebas de Vitest.
+
+## Validación
 
 ```bash
-npm run dev
+pnpm run check
+pnpm run typecheck
+pnpm test
 ```
 
-Verifica:
-
-- `http://localhost:4000/health`
-- `http://localhost:4000/api/docs`
-
-Los datos iniciales incluyen:
-
-- `admin / admin123`
-- `agente / agente123`
-- `supervisor / super123`
-
-## API
-
-Todos los endpoints, salvo `POST /api/auth/login` y `/health`, requieren autenticación con `Authorization: Bearer <token>`.
-
-### Recursos principales
-
-- `/api/afiliados`
-- `/api/proveedores`
-- `/api/planes`
-- `/api/polizas`
-- `/api/reclamos`
-- `/api/autorizaciones`
-- `/api/servicios`
-- `/api/pagos`
-- `/api/facturas`
-- `/api/notificaciones`
-
-### Operaciones de negocio
-
-- `/api/autorizaciones/:id/aprobar`
-- `/api/autorizaciones/:id/rechazar`
-- `/api/facturas/generar`
-- `/api/facturas/:id/pagar`
-- `/api/facturas/:id/recordatorio`
-- `/api/facturas/:id/gracia`
-- `/api/facturas/:id/suspender`
-
-## Pruebas
-
-Para test de carga con K6, consulta el README del directorio K6:
-
-```bash
-./k6/README.md
-```
+Genera el cliente de Prisma antes del typecheck y las pruebas. Vitest usa mocks para persistencia o integraciones externas y puede ejecutarse sin conectarse a PostgreSQL. Consulta la [guía de pruebas](tests/AGENTS.md) y las [suites de carga](k6/README.md).

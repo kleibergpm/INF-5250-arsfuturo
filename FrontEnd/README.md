@@ -1,77 +1,33 @@
-# FrontEnd ARS Futuro
+# Frontend de ARS Futuro
 
-Aplicación cliente en React + Vite + TypeScript para la gestión de afiliados, proveedores, autorizaciones, pagos y dashboard.
-
-## Requisitos
-
-- Node.js 20 o superior
-- npm o pnpm
-- Backend de la API ejecutándose en `http://localhost:4000`
-
-## Instalación
-
-Desde la carpeta del frontend:
+Cliente React y TypeScript, con Vite, Tailwind CSS, Recharts y Framer Motion. Sigue la [preparación local](../README.md#preparación-local) para iniciar la API y el cliente juntos. Para trabajar solo con Vite, ejecuta los comandos desde `FrontEnd/`.
 
 ```bash
-cd FrontEnd
-npm install
+pnpm install
+pnpm run dev
 ```
 
-Si necesitas configurar variables de entorno, crea un archivo `.env` a partir del ejemplo:
+El cliente se sirve en `http://localhost:5173`. Consulta `FrontEnd/.env.example` para cambiar `VITE_API_URL`, cuyo valor predeterminado es `http://localhost:4000/api`.
+
+## Estructura
+
+| Ruta | Responsabilidad |
+| --- | --- |
+| `src/App.tsx` | Sesión, carga de datos y navegación |
+| `src/api/` | Cliente HTTP, adaptadores de datos y mensajes de registro |
+| `src/domains/` | Vistas, formularios y operaciones por módulo |
+| `src/components/` | Controles compartidos, modales y barra de navegación |
+| `src/lib/` | Formato, exportación de CSV y tema |
+| `src/index.css` | Tokens visuales y breakpoints |
+
+Los CSV se generan con el exportador compartido. El nombre sigue el formato `Arsfuturo-NombreDeVentana.csv` y la normalización de tildes se aplica al archivo descargado.
+
+## Validación
 
 ```bash
-cp .env.example .env
+pnpm run check
+pnpm run typecheck
+pnpm run build
 ```
 
-En Windows PowerShell:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-## Variables de entorno
-
-Ejemplo de `.env`:
-
-```env
-VITE_API_URL=http://localhost:4000/api
-```
-
-## Ejecutar en desarrollo
-
-```bash
-npm run dev
-```
-
-La app quedará disponible en:
-
-- `http://localhost:5173`
-
-## Build de producción
-
-```bash
-npm run build
-```
-
-Puedes previsualizar el build con:
-
-```bash
-npm run preview
-```
-
-## Scripts disponibles
-
-- `npm run dev` — inicia Vite en modo desarrollo
-- `npm run build` — compila la aplicación para producción
-- `npm run preview` — sirve el build compilado localmente
-
-## Dependencias del proyecto
-
-El frontend usa:
-
-- React
-- Vite
-- TypeScript
-- Tailwind CSS
-
-Asegúrate de que la API backend esté corriendo antes de realizar pruebas funcionales desde la interfaz.
+Usa `pnpm run preview` para servir el build. Consulta la [guía de diseño](../docs/DESIGN.md), las [convenciones de código](../docs/CODING_CONVENTIONS.md) y las [instrucciones del frontend](AGENTS.md).

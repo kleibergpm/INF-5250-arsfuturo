@@ -1,0 +1,20 @@
+# Normaliza los finales de línea a LF en el repositorio y en el working tree.
+# Sin esto, core.autocrlf en Windows produce CRLF y Biome (lineEnding: lf)
+# marca todos los archivos como pendientes de formato.
+* text=auto eol=lf
+
+# Archivos binarios
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.wasm binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.mp4 binary
+*.mp3 binary

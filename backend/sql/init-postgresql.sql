@@ -1,160 +1,286 @@
--- ARS Futuro: inicialización de PostgreSQL.
--- Ejecute las dos primeras instrucciones conectado a la base "postgres" como superusuario.
-CREATE DATABASE ars_futuro;
+-- ARS Futuro: esquema consolidado compatible con prisma/schema.prisma.
+-- Solo para una base VACIA creada previamente (por ejemplo: createdb ars_futuro).
+-- Ejecutar desde backend: psql -d ars_futuro -v ON_ERROR_STOP=1 -f sql/init-postgresql.sql
+-- Para el flujo habitual, usar pnpm exec prisma migrate deploy en su lugar.
+-- Incluye INSURED y users.national_id: no ejecutar migraciones adicionales a mano.
+BEGIN;
 
--- En psql, cambie de conexión antes de ejecutar el resto del archivo:
--- \c ars_futuro
+-- CreateEnum
+CREATE TYPE "Role" AS ENUM ('ADMINISTRATOR', 'AGENT', 'SUPERVISOR', 'INSURED');
 
-CREATE TYPE rol AS ENUM ('ADMINISTRADOR', 'AGENTE', 'SUPERVISOR');
-CREATE TYPE estado_afiliado AS ENUM ('ACTIVO', 'SUSPENDIDO', 'INACTIVO');
-CREATE TYPE estado_autorizacion AS ENUM ('PENDIENTE', 'APROBADA', 'RECHAZADA');
-CREATE TYPE estado_reclamo AS ENUM ('EN_REVISION', 'APROBADA', 'RECHAZADA');
-CREATE TYPE estado_poliza AS ENUM ('VIGENTE', 'EN_GRACIA', 'SUSPENDIDA', 'VENCIDA');
-CREATE TYPE estado_factura AS ENUM ('PENDIENTE', 'PAGADA', 'ATRASADA', 'EN_GRACIA');
-CREATE TYPE estado_servicio AS ENUM ('PENDIENTE_PAGO', 'PAGADO');
-CREATE TYPE estado_pago AS ENUM ('PROCESADO', 'RECHAZADO');
+-- CreateEnum
+CREATE TYPE "InsuredStatus" AS ENUM ('ACTIVE', 'SUSPENDED', 'INACTIVE');
 
-CREATE TABLE usuarios (
-  id VARCHAR(36) PRIMARY KEY,
-  usuario VARCHAR(100) NOT NULL UNIQUE,
-  nombre VARCHAR(160) NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  rol rol NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+-- CreateEnum
+CREATE TYPE "AuthorizationStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+
+-- CreateEnum
+CREATE TYPE "ClaimStatus" AS ENUM ('UNDER_REVIEW', 'APPROVED', 'REJECTED');
+
+-- CreateEnum
+CREATE TYPE "PolicyStatus" AS ENUM ('ACTIVE', 'IN_GRACE', 'SUSPENDED', 'EXPIRED');
+
+-- CreateEnum
+CREATE TYPE "InvoiceStatus" AS ENUM ('PENDING', 'PAID', 'OVERDUE', 'IN_GRACE');
+
+-- CreateEnum
+CREATE TYPE "ServiceStatus" AS ENUM ('PENDING_PAYMENT', 'PAID');
+
+-- CreateEnum
+CREATE TYPE "PaymentStatus" AS ENUM ('PROCESSED', 'REJECTED');
+
+-- CreateTable
+CREATE TABLE "users" (
+    "id" TEXT NOT NULL,
+    "username" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "national_id" TEXT,
+    "password_hash" TEXT NOT NULL,
+    "role" "Role" NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE planes (
-  id VARCHAR(30) PRIMARY KEY,
-  nombre VARCHAR(160) NOT NULL,
-  copago_consulta NUMERIC(12, 2) NOT NULL CHECK (copago_consulta >= 0),
-  cobertura JSONB NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+-- CreateTable
+CREATE TABLE "plans" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "consultation_copay" DECIMAL(12,2) NOT NULL,
+    "coverage" JSONB NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "plans_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE proveedores (
-  id VARCHAR(36) PRIMARY KEY,
-  nombre VARCHAR(200) NOT NULL,
-  tipo VARCHAR(80) NOT NULL,
-  ciudad VARCHAR(100) NOT NULL,
-  telefono VARCHAR(40) NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+-- CreateTable
+CREATE TABLE "providers" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "city" TEXT NOT NULL,
+    "phone" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "providers_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE polizas (
-  id VARCHAR(30) PRIMARY KEY,
-  empresa VARCHAR(200) NOT NULL,
-  plan_id VARCHAR(30) NOT NULL REFERENCES planes(id),
-  desde DATE NOT NULL,
-  hasta DATE NOT NULL,
-  prima_mensual NUMERIC(14, 2) NOT NULL CHECK (prima_mensual > 0),
-  asegurados INTEGER NOT NULL DEFAULT 0 CHECK (asegurados >= 0),
-  estado estado_poliza NOT NULL DEFAULT 'VIGENTE',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CHECK (hasta >= desde)
+-- CreateTable
+CREATE TABLE "policies" (
+    "id" TEXT NOT NULL,
+    "company" TEXT NOT NULL,
+    "plan_id" TEXT NOT NULL,
+    "start_date" DATE NOT NULL,
+    "end_date" DATE NOT NULL,
+    "monthly_premium" DECIMAL(14,2) NOT NULL,
+    "insured_count" INTEGER NOT NULL DEFAULT 0,
+    "status" "PolicyStatus" NOT NULL DEFAULT 'ACTIVE',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "policies_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE afiliados (
-  id VARCHAR(36) PRIMARY KEY,
-  nombre VARCHAR(200) NOT NULL,
-  cedula VARCHAR(20) NOT NULL UNIQUE,
-  plan_id VARCHAR(30) NOT NULL REFERENCES planes(id),
-  poliza_id VARCHAR(30) REFERENCES polizas(id),
-  estado estado_afiliado NOT NULL DEFAULT 'ACTIVO',
-  desde DATE NOT NULL,
-  nacimiento DATE,
-  telefono VARCHAR(40),
-  correo VARCHAR(255),
-  dependientes INTEGER NOT NULL DEFAULT 0 CHECK (dependientes >= 0),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+-- CreateTable
+CREATE TABLE "insureds" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "national_id" TEXT NOT NULL,
+    "plan_id" TEXT NOT NULL,
+    "policy_id" TEXT,
+    "status" "InsuredStatus" NOT NULL DEFAULT 'ACTIVE',
+    "start_date" DATE NOT NULL,
+    "birth_date" DATE,
+    "phone" TEXT,
+    "email" TEXT,
+    "dependents" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "insureds_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE autorizaciones (
-  id VARCHAR(36) PRIMARY KEY,
-  afiliado_id VARCHAR(36) NOT NULL REFERENCES afiliados(id),
-  proveedor_id VARCHAR(36) NOT NULL REFERENCES proveedores(id),
-  procedimiento VARCHAR(255) NOT NULL,
-  copago NUMERIC(12, 2) NOT NULL CHECK (copago >= 0),
-  estado estado_autorizacion NOT NULL DEFAULT 'PENDIENTE',
-  fecha DATE NOT NULL DEFAULT CURRENT_DATE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+-- CreateTable
+CREATE TABLE "authorizations" (
+    "id" TEXT NOT NULL,
+    "insured_id" TEXT NOT NULL,
+    "provider_id" TEXT NOT NULL,
+    "procedure" TEXT NOT NULL,
+    "copay" DECIMAL(12,2) NOT NULL,
+    "status" "AuthorizationStatus" NOT NULL DEFAULT 'PENDING',
+    "date" DATE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "authorizations_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE reclamos (
-  id VARCHAR(36) PRIMARY KEY,
-  afiliado_id VARCHAR(36) NOT NULL REFERENCES afiliados(id),
-  proveedor_id VARCHAR(36) NOT NULL REFERENCES proveedores(id),
-  monto NUMERIC(14, 2) NOT NULL CHECK (monto > 0),
-  estado estado_reclamo NOT NULL DEFAULT 'EN_REVISION',
-  fecha DATE NOT NULL DEFAULT CURRENT_DATE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+-- CreateTable
+CREATE TABLE "claims" (
+    "id" TEXT NOT NULL,
+    "insured_id" TEXT NOT NULL,
+    "provider_id" TEXT NOT NULL,
+    "amount" DECIMAL(14,2) NOT NULL,
+    "status" "ClaimStatus" NOT NULL DEFAULT 'UNDER_REVIEW',
+    "date" DATE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "claims_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE servicios_medicos (
-  id VARCHAR(36) PRIMARY KEY,
-  afiliado_id VARCHAR(36) NOT NULL REFERENCES afiliados(id),
-  proveedor_id VARCHAR(36) NOT NULL REFERENCES proveedores(id),
-  autorizacion_id VARCHAR(36) REFERENCES autorizaciones(id),
-  descripcion VARCHAR(255) NOT NULL,
-  costo NUMERIC(14, 2) NOT NULL CHECK (costo > 0),
-  copago NUMERIC(12, 2) NOT NULL CHECK (copago >= 0),
-  fecha DATE NOT NULL DEFAULT CURRENT_DATE,
-  estado estado_servicio NOT NULL DEFAULT 'PENDIENTE_PAGO',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+-- CreateTable
+CREATE TABLE "medical_services" (
+    "id" TEXT NOT NULL,
+    "insured_id" TEXT NOT NULL,
+    "provider_id" TEXT NOT NULL,
+    "authorization_id" TEXT,
+    "description" TEXT NOT NULL,
+    "cost" DECIMAL(14,2) NOT NULL,
+    "copay" DECIMAL(12,2) NOT NULL,
+    "date" DATE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "status" "ServiceStatus" NOT NULL DEFAULT 'PENDING_PAYMENT',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "medical_services_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE pagos_proveedores (
-  id VARCHAR(36) PRIMARY KEY,
-  proveedor_id VARCHAR(36) NOT NULL REFERENCES proveedores(id),
-  servicio_id VARCHAR(36) NOT NULL UNIQUE REFERENCES servicios_medicos(id),
-  referencia_banco VARCHAR(120) NOT NULL UNIQUE,
-  monto NUMERIC(14, 2) NOT NULL CHECK (monto > 0),
-  metodo VARCHAR(80) NOT NULL,
-  fecha DATE NOT NULL DEFAULT CURRENT_DATE,
-  estado estado_pago NOT NULL DEFAULT 'PROCESADO',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+-- CreateTable
+CREATE TABLE "provider_payments" (
+    "id" TEXT NOT NULL,
+    "provider_id" TEXT NOT NULL,
+    "service_id" TEXT NOT NULL,
+    "bank_reference" TEXT NOT NULL,
+    "amount" DECIMAL(14,2) NOT NULL,
+    "method" TEXT NOT NULL,
+    "date" DATE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "status" "PaymentStatus" NOT NULL DEFAULT 'PROCESSED',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "provider_payments_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE facturas (
-  id VARCHAR(36) PRIMARY KEY,
-  poliza_id VARCHAR(30) NOT NULL REFERENCES polizas(id),
-  periodo CHAR(7) NOT NULL CHECK (periodo ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
-  emision DATE NOT NULL,
-  vencimiento DATE NOT NULL,
-  monto NUMERIC(14, 2) NOT NULL CHECK (monto > 0),
-  estado estado_factura NOT NULL DEFAULT 'PENDIENTE',
-  fecha_pago DATE,
-  referencia VARCHAR(120) UNIQUE,
-  recordatorio_enviado BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (poliza_id, periodo),
-  CHECK (vencimiento >= emision)
+-- CreateTable
+CREATE TABLE "invoices" (
+    "id" TEXT NOT NULL,
+    "policy_id" TEXT NOT NULL,
+    "period" TEXT NOT NULL,
+    "issued_at" DATE NOT NULL,
+    "due_date" DATE NOT NULL,
+    "amount" DECIMAL(14,2) NOT NULL,
+    "status" "InvoiceStatus" NOT NULL DEFAULT 'PENDING',
+    "paid_at" DATE,
+    "reference" TEXT,
+    "reminder_sent" BOOLEAN NOT NULL DEFAULT false,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "invoices_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE notificaciones (
-  id VARCHAR(36) PRIMARY KEY,
-  usuario_id VARCHAR(36) REFERENCES usuarios(id),
-  tipo VARCHAR(50) NOT NULL,
-  titulo VARCHAR(160),
-  mensaje TEXT NOT NULL,
-  leida BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+-- CreateTable
+CREATE TABLE "notifications" (
+    "id" TEXT NOT NULL,
+    "user_id" TEXT,
+    "type" TEXT NOT NULL,
+    "title" TEXT,
+    "message" TEXT NOT NULL,
+    "read" BOOLEAN NOT NULL DEFAULT false,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "notifications_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX proveedores_ciudad_tipo_idx ON proveedores (ciudad, tipo);
-CREATE INDEX polizas_estado_idx ON polizas (estado);
-CREATE INDEX afiliados_estado_idx ON afiliados (estado);
-CREATE INDEX autorizaciones_estado_fecha_idx ON autorizaciones (estado, fecha);
-CREATE INDEX reclamos_estado_fecha_idx ON reclamos (estado, fecha);
-CREATE INDEX servicios_medicos_estado_fecha_idx ON servicios_medicos (estado, fecha);
-CREATE INDEX facturas_estado_vencimiento_idx ON facturas (estado, vencimiento);
-CREATE INDEX notificaciones_usuario_leida_idx ON notificaciones (usuario_id, leida);
+-- CreateIndex
+CREATE UNIQUE INDEX "users_national_id_key" ON "users"("national_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_username_key" ON "users"("username");
+
+-- CreateIndex
+CREATE INDEX "providers_city_type_idx" ON "providers"("city", "type");
+
+-- CreateIndex
+CREATE INDEX "policies_status_idx" ON "policies"("status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "insureds_national_id_key" ON "insureds"("national_id");
+
+-- CreateIndex
+CREATE INDEX "insureds_status_idx" ON "insureds"("status");
+
+-- CreateIndex
+CREATE INDEX "authorizations_status_date_idx" ON "authorizations"("status", "date");
+
+-- CreateIndex
+CREATE INDEX "claims_status_date_idx" ON "claims"("status", "date");
+
+-- CreateIndex
+CREATE INDEX "medical_services_status_date_idx" ON "medical_services"("status", "date");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "provider_payments_service_id_key" ON "provider_payments"("service_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "provider_payments_bank_reference_key" ON "provider_payments"("bank_reference");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "invoices_reference_key" ON "invoices"("reference");
+
+-- CreateIndex
+CREATE INDEX "invoices_status_due_date_idx" ON "invoices"("status", "due_date");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "invoices_policy_id_period_key" ON "invoices"("policy_id", "period");
+
+-- CreateIndex
+CREATE INDEX "notifications_user_id_read_idx" ON "notifications"("user_id", "read");
+
+-- AddForeignKey
+ALTER TABLE "policies" ADD CONSTRAINT "policies_plan_id_fkey" FOREIGN KEY ("plan_id") REFERENCES "plans"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "insureds" ADD CONSTRAINT "insureds_plan_id_fkey" FOREIGN KEY ("plan_id") REFERENCES "plans"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "insureds" ADD CONSTRAINT "insureds_policy_id_fkey" FOREIGN KEY ("policy_id") REFERENCES "policies"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "authorizations" ADD CONSTRAINT "authorizations_insured_id_fkey" FOREIGN KEY ("insured_id") REFERENCES "insureds"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "authorizations" ADD CONSTRAINT "authorizations_provider_id_fkey" FOREIGN KEY ("provider_id") REFERENCES "providers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "claims" ADD CONSTRAINT "claims_insured_id_fkey" FOREIGN KEY ("insured_id") REFERENCES "insureds"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "claims" ADD CONSTRAINT "claims_provider_id_fkey" FOREIGN KEY ("provider_id") REFERENCES "providers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "medical_services" ADD CONSTRAINT "medical_services_insured_id_fkey" FOREIGN KEY ("insured_id") REFERENCES "insureds"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "medical_services" ADD CONSTRAINT "medical_services_provider_id_fkey" FOREIGN KEY ("provider_id") REFERENCES "providers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "medical_services" ADD CONSTRAINT "medical_services_authorization_id_fkey" FOREIGN KEY ("authorization_id") REFERENCES "authorizations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "provider_payments" ADD CONSTRAINT "provider_payments_provider_id_fkey" FOREIGN KEY ("provider_id") REFERENCES "providers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "provider_payments" ADD CONSTRAINT "provider_payments_service_id_fkey" FOREIGN KEY ("service_id") REFERENCES "medical_services"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "invoices" ADD CONSTRAINT "invoices_policy_id_fkey" FOREIGN KEY ("policy_id") REFERENCES "policies"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+COMMIT;

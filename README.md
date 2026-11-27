@@ -1,236 +1,116 @@
-**Proyecto:** ARS Futuro
+# ARS Futuro
 
-Proyecto full-stack para la gestión de una Administradora de Riesgos de Salud (ARS), con backend en Express + TypeScript + Prisma + PostgreSQL y frontend en React + Vite + Tailwind CSS.
+Sistema web para gestionar afiliados, autorizaciones, reclamos, proveedores, servicios médicos, pagos y facturación de una Administradora de Riesgos de Salud. El cliente usa React y Vite. La API usa Express y TypeScript, con PostgreSQL y Prisma para persistencia.
 
-**Asignatura:** INF-5250 – Ingeniería de Software II
+## Equipo
 
-**Semestre:** 2026-2
+INF-5250 · Ingeniería de Software II · 2026-2 · Sección Z01
 
-**Profesor:** Amancio Lorenzo Lorenzo
+Profesor Amancio Lorenzo Lorenzo · Grupo The Code Society
 
-**Seccion:** Z01
+| Integrante | Matrícula | Rol |
+| --- | --- | --- |
+| Anderson Antonio Castillo Peláez | 100631535 | Desarrollador full-stack |
+| Kleiber Gabriel Pérez Montero | 100453725 | Desarrollador backend y QA |
+| Eric Vladimir Tejada Nieve | FF1944 | Desarrollador frontend |
+| Mayobanex Vicente Soto | 100417556 | Desarrollador frontend |
 
-**Proyecto:** ARS Futuro
+## Estado y tecnologías
 
-**Grupo:** The code society
+[![Versión](https://img.shields.io/github/v/release/kleibergpm/INF-5250-arsfuturo?logo=github&label=version)](https://github.com/kleibergpm/INF-5250-arsfuturo/releases)
+[![Último commit](https://img.shields.io/github/last-commit/kleibergpm/INF-5250-arsfuturo/qa-environment?logo=github)](https://github.com/kleibergpm/INF-5250-arsfuturo/commits/qa-environment)
+[![Issues](https://img.shields.io/github/issues/kleibergpm/INF-5250-arsfuturo?logo=github)](https://github.com/kleibergpm/INF-5250-arsfuturo/issues)
+[![Pull requests](https://img.shields.io/github/issues-pr/kleibergpm/INF-5250-arsfuturo?logo=github)](https://github.com/kleibergpm/INF-5250-arsfuturo/pulls)
+[![Quality Checks](https://github.com/kleibergpm/INF-5250-arsfuturo/actions/workflows/quality.yml/badge.svg)](https://github.com/kleibergpm/INF-5250-arsfuturo/actions/workflows/quality.yml)
 
----
+[![Node.js 24](https://img.shields.io/badge/Node.js-24_LTS-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/en/download)
+[![pnpm 10](https://img.shields.io/badge/pnpm-10-F69220?logo=pnpm)](https://pnpm.io/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Recharts](https://img.shields.io/badge/Recharts-3-2684A0)](https://recharts.org/)
+[![Framer Motion](https://img.shields.io/badge/Framer_Motion-13-0055FF)](https://motion.dev/)
 
-## 👥 Integrantes del equipo
-| Integrante                       | Matrícula | Rol |
-| -------------------------------- | --------: | --------: |
-| Anderson Antonio Castillo Peláez | 100631535 | Desarrollador Full-Stack |
-| Kleiber Gabriel Pérez Montero    | 100453725 | Desarrollador BackEnd / QA Engineer |
-| Eric Vladimir Tejada Nieve       |    FF1944 | Desarrollador FrontEnd |
-| Mayobanex Vicente Soto           | 100417556 | Desarrollador FrontEnd |
+[![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)](https://expressjs.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Prisma](https://img.shields.io/badge/Prisma-7-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io/)
+[![Zod](https://img.shields.io/badge/Zod-4-3E67B1?logo=zod&logoColor=white)](https://zod.dev/)
+[![JWT](https://img.shields.io/badge/Auth-JWT-000000?logo=jsonwebtokens)](https://github.com/auth0/node-jsonwebtoken)
+[![Swagger](https://img.shields.io/badge/API-Swagger-85EA2D?logo=swagger&logoColor=black)](https://swagger.io/)
 
----
+[![Biome](https://img.shields.io/badge/Biome-2-60A5FA?logo=biome&logoColor=black)](https://biomejs.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-5-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Husky](https://img.shields.io/badge/Husky-Git_hooks-79589F)](https://typicode.github.io/husky/)
+[![k6](https://img.shields.io/badge/Load_testing-k6-7D64FF?logo=k6&logoColor=white)](https://k6.io/)
 
-## 📊 Estado del Proyecto
+### 1. Instala las herramientas
 
-[![Version](https://img.shields.io/github/v/release/kleibergpm/arsfuturo?logo=github&label=version)](https://github.com/kleibergpm/arsfuturo/releases)
-[![Last Commit](https://img.shields.io/github/last-commit/kleibergpm/arsfuturo?logo=github)](https://github.com/kleibergpm/arsfuturo/commits)
-[![Issues](https://img.shields.io/github/issues/kleibergpm/arsfuturo?logo=github)](https://github.com/kleibergpm/arsfuturo/issues)
-[![Pull Requests](https://img.shields.io/github/issues-pr/kleibergpm/arsfuturo?logo=github)](https://github.com/kleibergpm/arsfuturo/pulls)
-[![License](https://img.shields.io/github/license/kleibergpm/arsfuturo?logo=github)](https://github.com/kleibergpm/arsfuturo/blob/main/LICENSE)
+1. Instala **Git** con las opciones predeterminadas. [Git para Windows](https://git-scm.com/install/win)
+2. Instala **Node.js 24 LTS** con el instalador de Windows. [Descargas de Node.js](https://nodejs.org/en/download)
+3. Instala **PostgreSQL 14 o posterior**. En el instalador de Windows selecciona el servidor de PostgreSQL y pgAdmin. Conserva el puerto `5432` si está libre y guarda la contraseña que eliges para el usuario `postgres`. La necesitarás para conectar la aplicación a la base. [Instalador de PostgreSQL](https://www.postgresql.org/download/windows/)
 
-## 🛠️ Stack Tecnológico
 
-### FrontEnd
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+### 2. Descarga el proyecto
 
-### BackEnd
-[![Node.js](https://img.shields.io/badge/Node.js-20+-brightgreen?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Express](https://img.shields.io/badge/Express-000000?logo=express&logoColor=white)](https://expressjs.com/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Prisma](https://img.shields.io/badge/Prisma-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io/)
+Abre en el Explorador la carpeta donde quieres guardar el proyecto. Escribe `powershell` en la barra de direcciones y pulsa Enter. En esa terminal ejecuta:
 
-## Preguntar a DeepWiki: [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/kleibergpm/arsfuturo)
-
-## Índice
-
-- [Estructura del proyecto](#estructura-del-proyecto)
-- [Requisitos previos](#requisitos-previos)
-- [Instalación rápida](#instalación-rápida)
-- [Configuración de entorno](#configuración-de-entorno)
-- [Ejecución local](#ejecución-local)
-- [Documentación por módulo](#documentación-por-módulo)
-- [Comandos útiles](#comandos-útiles)
-
-## Estructura del proyecto
-
-```text
-arsfuturo/
-├── backend/              # API REST con Express + Prisma + PostgreSQL
-│   ├── .env.example      # plantilla de variables del backend
-│   ├── k6/               # pruebas de carga con K6
-│   ├── prisma/           # schema y seed de Prisma
-│   ├── sql/              # scripts SQL de inicialización
-│   ├── src/              # código de la API
-│   └── README.md         # documentación del backend
-├── FrontEnd/             # frontend React + Vite + Tailwind
-│   ├── README.md         # documentación del frontend
-│   └── src/              # código del cliente
-├── docs/                 # diagramas y documentación adicional
-├── GUION_PRESENTACION.md # guía de presentación
-├── README.md             # este archivo
-└── package.json          # opcional, si se añade en el futuro
-```
-
-## Requisitos previos
-
-Antes de iniciar, asegúrate de tener instalado:
-
-- Node.js 20+
-- npm
-- PostgreSQL 14+
-- Git
-- K6 (solo si vas a ejecutar pruebas de carga)
-
-## Instalación rápida
-
-### 1) Clonar el repositorio
-
-```bash
-git clone https://github.com/tu-usuario/arsfuturo.git
+```powershell
+git clone https://github.com/kleibergpm/INF-5250-arsfuturo.git
 cd arsfuturo
 ```
 
-### 2) Instalar dependencias del backend
 
-```bash
-cd backend
-npm install
-```
 
-### 3) Copiar variables de entorno
+### 3. Crea la base de datos local
 
-```bash
-cp .env.example .env
-```
+Copia `backend/.env.example` a `backend/.env`, crea en PostgreSQL la base que usarás en desarrollo y configura DATABASE_URL y JWT_SECRET
 
-En PowerShell:
+1. Abre **pgAdmin** desde Inicio y despliega **Servers**. Si ya aparece tu servidor PostgreSQL, ábrelo y usa la contraseña de `postgres` elegida durante la instalación.
+2. Haz clic derecho en **Databases → Create → Database**. Escribe `ars_futuro` como nombre, elige `postgres` como propietario y pulsa **Save**. Comprueba que la base aparece debajo de **Databases**. [Creación de una base en pgAdmin](https://www.pgadmin.org/docs/pgadmin4/latest/database_dialog.html)
+
+### 4 Instala las dependencias y prepara los datos
+
+Ejecuta estos comandos desde `arsfuturo`, uno por uno. La primera instalación necesita internet y puede tardar varios minutos.
 
 ```powershell
-Copy-Item .env.example .env
+pnpm install
+pnpm run install:all
 ```
 
-### 4) Crear la base de datos PostgreSQL
-
-Asegúrate de tener una base llamada `ars_futuro` en PostgreSQL.
-
-### 5) Configurar el archivo `.env`
-
-Ejemplo:
-
-```env
-PORT=4000
-DATABASE_URL="postgresql://postgres:TU_PASSWORD@localhost:5432/ars_futuro?schema=public"
-JWT_SECRET="una-clave-larga-y-privada"
-CORS_ORIGIN="http://localhost:5173"
+Aplica las migraciones y, si necesitas datos de demostración, ejecuta el seed en una base local.
+```powershell
+pnpm -C backend exec prisma migrate deploy
+pnpm -C backend run prisma:seed
 ```
 
-## Configuración de entorno
+Los primeros dos comandos instalan las dependencias y generan el cliente de Prisma. El tercero crea las tablas en la base local. El último carga los datos de prueba y las cuentas de demostración. Espera a que indique que el seed terminó antes de abrir la aplicación.
 
-### Backend
+### 6. Inicia y abre ARS Futuro
 
-El archivo `.env.example` se encuentra en la carpeta backend y ya incluye las variables principales:
-
-```env
-PORT=4000
-DATABASE_URL="postgresql://postgres:TU_PASSWORD@localhost:5432/ars_futuro?schema=public"
-JWT_SECRET="cambia-esta-clave-por-una-aleatoria-y-segura"
-CORS_ORIGIN="http://localhost:5173"
+```powershell
+pnpm dev:all
 ```
 
-### Frontend
+Mantén abierta la terminal. Abre [ARS Futuro](http://localhost:5173) en el navegador e inicia sesión con `admin` y `admin123`. Si quieres verificar la API por separado, abre [el chequeo de salud](http://localhost:4000/health). Debe mostrar `{"status":"ok"}`. La [documentación interactiva de la API](http://localhost:4000/api/docs) también queda disponible.
 
-En la carpeta frontend puede configurarse un `.env` con:
+Para detener la aplicación, vuelve a la terminal y pulsa `Ctrl+C`. Si Windows pregunta si deseas terminar el trabajo por lotes, confirma.
 
-```env
-VITE_API_URL=http://localhost:4000/api
-```
+### Acceso demo
 
-## Ejecución local
+El seed carga, entre otras, estas cuentas para desarrollo local.
 
-### Backend
+| Usuario | Contraseña | Rol |
+| --- | --- | --- |
+| `admin` | `admin123` | Administrador |
+| `agente` | `agente123` | Agente |
+| `supervisor` | `super123` | Supervisor |
+| `afiliado` | `afiliado123` | Afiliado |
 
-```bash
-cd backend
-npm run prisma:generate
-npx prisma db push
-npm run prisma:seed
-npm run dev
-```
+## Documentación
 
-La API queda disponible en:
-
-- `http://localhost:4000`
-- `http://localhost:4000/health`
-- `http://localhost:4000/api/docs`
-
-### Frontend
-
-```bash
-cd FrontEnd
-npm install
-npm run dev
-```
-
-La app queda disponible en:
-
-- `http://localhost:5173`
-
-## Documentación por módulo
-
-- [Backend README](backend/README.md)
-- [Frontend README](FrontEnd/README.md)
-- [K6 README](backend/k6/README.md)
-- [Diagramas UML](docs/DIAGRAMAS_UML.md)
-- [Guion de presentación](GUION_PRESENTACION.md)
-
-## Comandos útiles
-
-### Backend
-
-```bash
-cd backend
-npm run dev
-npm run typecheck
-npm test
-npm run prisma:generate
-npm run prisma:seed
-```
-
-### Frontend
-
-```bash
-cd FrontEnd
-npm install
-npm run dev
-npm run build
-npm run preview
-```
-
-### K6
-
-```bash
-cd backend
-k6 run k6/auth-smoke.js
-k6 run k6/crud-endpoints.js
-k6 run k6/business-endpoints.js
-```
-
-## Credenciales demo
-
-El proyecto incluye usuarios de prueba por defecto:
-
-- `admin / admin123`
-- `agente / agente123`
-- `supervisor / super123`
-
-> Recomendación: cambialos antes de usar el sistema fuera del entorno local de desarrollo.
-
+- [Índice de documentación](docs/README.md), con arquitectura, diseño, calidad y decisiones del WBS.
+- [Backend](backend/README.md), con configuración de PostgreSQL, migraciones y API.
+- [Frontend](FrontEnd/README.md), con estructura y comandos del cliente.
+- [Pruebas de carga](backend/k6/README.md) y [MCP de diseño](mcp/frontend-design/README.md).
+- [Guía de agentes](AGENTS.md), con instrucciones específicas enlazadas por módulo.

@@ -1,0 +1,15 @@
+allowBuilds:
+  '@prisma/client': set this to true or false
+  '@prisma/engines': true
+  '@scarf/scarf': true
+  esbuild: true
+  prisma: true
+
+minimumReleaseAgeExclude:
+  - dotenv@18.0.0
+
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - '@scarf/scarf'
+  - esbuild
+  - prisma
