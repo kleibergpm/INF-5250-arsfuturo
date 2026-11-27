@@ -86,7 +86,7 @@ pnpm -C backend exec prisma migrate deploy
 pnpm -C backend run prisma:seed
 ```
 
-Los primeros dos comandos instalan las dependencias y generan el cliente de Prisma. El tercero crea las tablas en la base local. El último carga los datos de prueba y las cuentas de demostración. Espera a que indique que el seed terminó antes de abrir la aplicación.
+l primer comando crea las tablas en la base local. El último carga los datos de prueba y las cuentas de demostración. Espera a que indique que el seed terminó antes de abrir la aplicación.
 
 ### 6. Inicia y abre ARS Futuro
 
