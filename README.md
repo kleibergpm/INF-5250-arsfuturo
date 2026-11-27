@@ -67,7 +67,9 @@ cd arsfuturo
 Copia `backend/.env.example` a `backend/.env`, crea en PostgreSQL la base que usarás en desarrollo y configura DATABASE_URL y JWT_SECRET
 
 1. Abre **pgAdmin** desde Inicio y despliega **Servers**. Si ya aparece tu servidor PostgreSQL, ábrelo y usa la contraseña de `postgres` elegida durante la instalación.
-2. Haz clic derecho en **Databases → Create → Database**. Escribe `ars_futuro` como nombre, elige `postgres` como propietario y pulsa **Save**. Comprueba que la base aparece debajo de **Databases**. [Creación de una base en pgAdmin](https://www.pgadmin.org/docs/pgadmin4/latest/database_dialog.html)
+2. Haz clic derecho en **Databases → Create → Database**. Escribe `ars_futuro_prisma_local` como nombre, elige `postgres` como propietario y pulsa **Save**. Comprueba que la base aparece debajo de **Databases**. [Creación de una base en pgAdmin](https://www.pgadmin.org/docs/pgadmin4/latest/database_dialog.html)
+
+Usa una base nueva y vacía para este backend. Si ya tienes una base `ars_futuro` de una versión anterior con tablas en español, no la borres ni la reutilices: conserva sus datos y apunta `backend/.env` a `ars_futuro_prisma_local` (como en `.env.example`).
 
 ### 4 Instala las dependencias y prepara los datos
 

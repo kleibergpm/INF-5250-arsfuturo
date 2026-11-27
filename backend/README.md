@@ -20,6 +20,10 @@ Copia `.env.example` a `.env` y completa los valores locales antes de generar el
 
 Para un prototipo sin historial puedes usar `pnpm exec prisma db push` en una base separada. Las bases compartidas se administran mediante las migraciones.
 
+### Base existente y error P3005
+
+Las migraciones del backend esperan una base vacía o una base cuyo esquema ya corresponda exactamente al historial Prisma. Si `prisma migrate deploy` devuelve `P3005`, no marques las migraciones como aplicadas ni borres las tablas existentes. Para desarrollo local, crea una base nueva y vacía (por ejemplo, `ars_futuro_prisma_local`), actualiza `DATABASE_URL` en `.env` y vuelve a ejecutar `pnpm exec prisma migrate deploy`. Los datos de la base anterior no se copian automáticamente.
+
 ### Instalación alternativa con SQL
 
 Los archivos de `sql/` permiten inicializar y sembrar una base **vacía** cuando el entorno dispone de `psql`. Usa un solo método de inicialización y un solo seed.
