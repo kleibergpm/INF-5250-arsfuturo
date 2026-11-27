@@ -1,0 +1,248 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/lib/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMINISTRATOR
+  AGENT
+  SUPERVISOR
+}
+
+enum InsuredStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum AuthorizationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ClaimStatus {
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum PolicyStatus {
+  ACTIVE
+  IN_GRACE
+  SUSPENDED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  IN_GRACE
+}
+
+enum ServiceStatus {
+  PENDING_PAYMENT
+  PAID
+}
+
+enum PaymentStatus {
+  PROCESSED
+  REJECTED
+}
+
+model User {
+  id            String         @id @default(uuid())
+  username      String         @unique
+  name          String
+  passwordHash  String         @map("password_hash")
+  role          Role
+  notifications Notification[]
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Plan {
+  id                String    @id
+  name              String
+  consultationCopay Decimal   @map("consultation_copay") @db.Decimal(12, 2)
+  coverage          Json
+  insureds          Insured[]
+  policies          Policy[]
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@map("plans")
+}
+
+model Provider {
+  id             String            @id @default(uuid())
+  name           String
+  type           String
+  city           String
+  phone          String
+  authorizations Authorization[]
+  claims         Claim[]
+  services       MedicalService[]
+  payments       ProviderPayment[]
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  @@index([city, type])
+  @@map("providers")
+}
+
+model Policy {
+  id             String       @id
+  company        String
+  planId         String       @map("plan_id")
+  startDate      DateTime     @map("start_date") @db.Date
+  endDate        DateTime     @map("end_date") @db.Date
+  monthlyPremium Decimal      @map("monthly_premium") @db.Decimal(14, 2)
+  insuredCount   Int          @default(0) @map("insured_count")
+  status         PolicyStatus @default(ACTIVE)
+  plan           Plan         @relation(fields: [planId], references: [id])
+  insureds       Insured[]
+  invoices       Invoice[]
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("policies")
+}
+
+model Insured {
+  id             String           @id @default(uuid())
+  name           String
+  nationalId     String           @unique @map("national_id")
+  planId         String           @map("plan_id")
+  policyId       String?          @map("policy_id")
+  status         InsuredStatus    @default(ACTIVE)
+  startDate      DateTime         @map("start_date") @db.Date
+  birthDate      DateTime?        @map("birth_date") @db.Date
+  phone          String?
+  email          String?
+  dependents     Int              @default(0)
+  plan           Plan             @relation(fields: [planId], references: [id])
+  policy         Policy?          @relation(fields: [policyId], references: [id])
+  authorizations Authorization[]
+  claims         Claim[]
+  services       MedicalService[]
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("insureds")
+}
+
+model Authorization {
+  id         String              @id @default(uuid())
+  insuredId  String              @map("insured_id")
+  providerId String              @map("provider_id")
+  procedure  String
+  copay      Decimal             @db.Decimal(12, 2)
+  status     AuthorizationStatus @default(PENDING)
+  date       DateTime            @default(now()) @db.Date
+  insured    Insured             @relation(fields: [insuredId], references: [id])
+  provider   Provider            @relation(fields: [providerId], references: [id])
+  services   MedicalService[]
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+
+  @@index([status, date])
+  @@map("authorizations")
+}
+
+model Claim {
+  id         String      @id @default(uuid())
+  insuredId  String      @map("insured_id")
+  providerId String      @map("provider_id")
+  amount     Decimal     @db.Decimal(14, 2)
+  status     ClaimStatus @default(UNDER_REVIEW)
+  date       DateTime    @default(now()) @db.Date
+  insured    Insured     @relation(fields: [insuredId], references: [id])
+  provider   Provider    @relation(fields: [providerId], references: [id])
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  @@index([status, date])
+  @@map("claims")
+}
+
+model MedicalService {
+  id              String           @id @default(uuid())
+  insuredId       String           @map("insured_id")
+  providerId      String           @map("provider_id")
+  authorizationId String?          @map("authorization_id")
+  description     String
+  cost            Decimal          @db.Decimal(14, 2)
+  copay           Decimal          @db.Decimal(12, 2)
+  date            DateTime         @default(now()) @db.Date
+  status          ServiceStatus    @default(PENDING_PAYMENT)
+  insured         Insured          @relation(fields: [insuredId], references: [id])
+  provider        Provider         @relation(fields: [providerId], references: [id])
+  authorization   Authorization?   @relation(fields: [authorizationId], references: [id])
+  payment         ProviderPayment?
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  @@index([status, date])
+  @@map("medical_services")
+}
+
+model ProviderPayment {
+  id            String         @id @default(uuid())
+  providerId    String         @map("provider_id")
+  serviceId     String         @unique @map("service_id")
+  bankReference String         @unique @map("bank_reference")
+  amount        Decimal        @db.Decimal(14, 2)
+  method        String
+  date          DateTime       @default(now()) @db.Date
+  status        PaymentStatus  @default(PROCESSED)
+  provider      Provider       @relation(fields: [providerId], references: [id])
+  service       MedicalService @relation(fields: [serviceId], references: [id])
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  @@map("provider_payments")
+}
+
+model Invoice {
+  id           String        @id @default(uuid())
+  policyId     String        @map("policy_id")
+  period       String
+  issuedAt     DateTime      @map("issued_at") @db.Date
+  dueDate      DateTime      @map("due_date") @db.Date
+  amount       Decimal       @db.Decimal(14, 2)
+  status       InvoiceStatus @default(PENDING)
+  paidAt       DateTime?     @map("paid_at") @db.Date
+  reference    String?       @unique
+  reminderSent Boolean       @default(false) @map("reminder_sent")
+  policy       Policy        @relation(fields: [policyId], references: [id])
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  @@unique([policyId, period])
+  @@index([status, dueDate])
+  @@map("invoices")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  type      String
+  title     String?
+  message   String
+  read      Boolean  @default(false)
+  user      User?    @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, read])
+  @@map("notifications")
+}
